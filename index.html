@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+
+<html lang="es"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_standard" name="shell-type"/><title>FoodSave - Salva Comida, Reduce el Desperdicio</title><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "surface": "#faf8ff", "tertiary-fixed": "#ffddb8", "inverse-surface": "#283044", "secondary-fixed-dim": "#ffb599", "on-primary-container": "#f5fff7", "background": "#faf8ff", "on-secondary": "#ffffff", "tertiary-fixed-dim": "#ffb95f", "surface-container-lowest": "#ffffff", "surface-tint": "#006c4a", "on-tertiary": "#ffffff", "secondary-fixed": "#ffdbce", "outline-variant": "#bccac0", "on-tertiary-fixed": "#2a1700", "on-tertiary-fixed-variant": "#653e00", "outline": "#6d7a72", "on-tertiary-container": "#fffbff", "secondary": "#a73a00", "on-surface": "#131b2e", "surface-container": "#eaedff", "surface-container-high": "#e2e7ff", "tertiary": "#825100", "on-secondary-fixed": "#370e00", "surface-variant": "#dae2fd", "inverse-on-surface": "#eef0ff", "error-container": "#ffdad6", "on-surface-variant": "#3d4a42", "on-error-container": "#93000a", "on-primary": "#ffffff", "on-background": "#131b2e", "surface-container-low": "#f2f3ff", "on-secondary-container": "#571a00", "on-secondary-fixed-variant": "#7f2b00", "error": "#ba1a1a", "surface-dim": "#d2d9f4", "primary": "#006948", "surface-container-highest": "#dae2fd", "primary-fixed-dim": "#68dba9", "tertiary-container": "#a36700", "on-primary-fixed": "#002114", "surface-bright": "#faf8ff", "secondary-container": "#fd651e", "inverse-primary": "#68dba9", "primary-container": "#00855d", "on-primary-fixed-variant": "#005137", "on-error": "#ffffff", "primary-fixed": "#85f8c4" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "gutter-mobile": "1rem", "space-xs": "0.25rem", "margin": "2rem", "space-lg": "1.5rem", "gutter": "1.5rem", "margin-mobile": "1rem", "space-sm": "0.5rem", "space-md": "1rem", "space-xl": "2.5rem" }, "fontFamily": { "label-lg": [ "Inter" ], "headline-sm": [ "Inter" ], "headline-lg": [ "Inter" ], "display-lg-mobile": [ "Inter" ], "body-lg": [ "Inter" ], "label-md": [ "Inter" ], "headline-md": [ "Inter" ], "headline-xl-mobile": [ "Inter" ], "body-md": [ "Inter" ], "headline-xl": [ "Inter" ], "body-sm": [ "Inter" ], "label-sm": [ "Inter" ], "display-lg": [ "Inter" ] }, "fontSize": { "label-lg": [ "14px", { "lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600" } ], "headline-sm": [ "18px", { "lineHeight": "24px", "fontWeight": "600" } ], "headline-lg": [ "28px", { "lineHeight": "36px", "letterSpacing": "-0.015em", "fontWeight": "700" } ], "display-lg-mobile": [ "32px", { "lineHeight": "40px", "letterSpacing": "-0.02em", "fontWeight": "800" } ], "body-lg": [ "16px", { "lineHeight": "24px", "fontWeight": "400" } ], "label-md": [ "12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" } ], "headline-md": [ "22px", { "lineHeight": "28px", "letterSpacing": "-0.01em", "fontWeight": "600" } ], "headline-xl-mobile": [ "26px", { "lineHeight": "32px", "letterSpacing": "-0.015em", "fontWeight": "700" } ], "body-md": [ "14px", { "lineHeight": "20px", "fontWeight": "400" } ], "headline-xl": [ "36px", { "lineHeight": "44px", "letterSpacing": "-0.02em", "fontWeight": "700" } ], "body-sm": [ "12px", { "lineHeight": "16px", "fontWeight": "400" } ], "label-sm": [ "11px", { "lineHeight": "14px", "letterSpacing": "0.04em", "fontWeight": "700" } ], "display-lg": [ "48px", { "lineHeight": "56px", "letterSpacing": "-0.025em", "fontWeight": "800" } ] } } } };</script></head><body class="bg-surface font-body-md text-on-surface antialiased min-h-screen flex flex-col"><header class="fixed top-0 left-0 right-0 w-full z-50 bg-surface-container-lowest/80 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="h-20 max-w-7xl mx-auto px-margin flex items-center justify-between gap-space-md"><div class="flex items-center gap-space-lg"><a class="flex items-center gap-space-sm" data-path="inicio" href="#"><img alt="Logo FoodSave" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1XP3C8i-pPRovCVI4NaiXz5O2KzkNHnOc7wZviSseH1XccAXeHc46NYTsURcDSwwKzdFyaYGbeeV12OvrygCZl7u7U-IS7VUSzUMjqrXi2xCZb2gTgJDWXc_d1M4slkFji3uBT6NSX-wigNjpr6IuN7ylUZS5XAtfZYl6W8OVsOPf_rsFQG2HGNalRQB9BOch3LXHAUhN06pkiZPJNFC8Z04FZz6YOfVWwK3qng2qk9qkhDdsCz0OafOg"/><span class="font-headline-sm text-headline-sm text-primary tracking-tight">FoodSave</span></a><div class="hidden xl:flex items-center gap-space-xs px-space-sm py-1 rounded-full bg-surface-container text-on-surface-variant hover:bg-surface-container-high transition-colors cursor-pointer"><span class="material-symbols-outlined text-[18px] text-primary">location_on</span><span class="font-label-md text-label-md text-on-surface">Santiago, Centro</span><span class="material-symbols-outlined text-[16px]">expand_more</span></div></div><nav class="hidden lg:flex items-center gap-space-xs p-1 rounded-full bg-surface-container-low" data-active-classes="bg-primary-container text-on-primary-container font-label-md"><a aria-current="page" class="px-space-md py-space-xs rounded-full transition-all bg-primary-container text-on-primary-container font-label-md" data-path="inicio" href="#">Inicio</a><a class="px-space-md py-space-xs rounded-full font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="explorar-comida" href="#">Explorar Comida</a><a class="px-space-md py-space-xs rounded-full font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="como-funciona" href="#">Cómo Funciona</a><a class="px-space-md py-space-xs rounded-full font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="impacto-ambiental" href="#">Impacto Ambiental</a><a class="px-space-md py-space-xs rounded-full font-label-md text-label-md text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-all" data-path="para-negocios" href="#">Para Negocios</a></nav><div class="flex items-center gap-space-md"><a class="hidden sm:inline-flex items-center justify-center px-space-md py-2 rounded-lg bg-surface-container-lowest text-primary font-label-md text-label-md shadow-[0_1px_3px_rgba(15,23,42,0.04)] hover:bg-surface-container-low transition-all" data-path="registro-comercio" href="#">Registrar Comercio</a><div class="flex items-center gap-space-sm"><button aria-label="Notificaciones" class="relative p-2 rounded-full hover:bg-surface-container transition-colors text-on-surface-variant"><span class="material-symbols-outlined text-[22px]">notifications</span><span class="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-secondary-container ring-2 ring-surface-container-lowest"></span></button><a class="flex items-center gap-space-xs px-space-sm py-1.5 rounded-full bg-surface-container-low hover:bg-surface-container transition-colors" data-path="mis-reservas" href="#"><span class="material-symbols-outlined text-[20px] text-primary">shopping_bag</span><span class="font-label-md text-label-md text-on-surface">Reserva</span><span class="px-1.5 py-0.5 rounded-full bg-primary-container text-on-primary-container font-label-sm text-label-sm">0</span></a><div class="flex items-center gap-space-xs pl-space-xs cursor-pointer"><img alt="Profile" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDLGUYkqF-FgHHFDGgceLHbiiw28vL3Bobp89o4_ED0yhu9NCqEV1jRkcOcoKuNoP-vk7mDaQ7Fhv-k4QNiIcXNkPq9C3LIL5mknmY0lTuspBOQ_Vcw3aE6K6YzS834ZFaL_CAdH-ti2kRaKB_owb-EdZUKI_LKgCk3_T3rRV1yBcv84oqp5o0VtxH_FIzvREdKU_b5e0NlyqYS60suGOjdbZzbf7BG2K3xBqIX7btgEQib44eCkl78"/><span class="material-symbols-outlined text-[16px] text-on-surface-variant hidden md:inline-block">expand_more</span></div></div></div></div></header><main class="w-full pt-20 bg-surface flex-grow"><div class="flex flex-col w-full relative selection:bg-primary selection:text-on-primary">
+<!-- TOAST NOTIFICATION CONTAINER -->
+<div class="fixed bottom-6 right-6 z-50 flex flex-col gap-space-sm pointer-events-none" id="toast-container"></div>
+<!-- MODAL QUICK CHECKOUT / RESERVATION PREVIEW -->
+<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-inverse-surface/40 backdrop-blur-md opacity-0 pointer-events-none transition-all duration-300" id="booking-modal">
+<div class="bg-surface-container-lowest rounded-xl shadow-2xl max-w-lg w-full p-space-lg transform scale-95 transition-all duration-300 relative" id="modal-card">
+<button class="absolute top-4 right-4 p-2 rounded-full hover:bg-surface-container text-on-surface-variant transition-colors" onclick="closeModal()">
+<span class="material-symbols-outlined text-[20px]">close</span>
+</button>
+<div class="flex items-center gap-space-sm mb-space-md">
+<div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[22px]">eco</span>
+</div>
+<div>
+<span class="font-label-sm text-label-sm text-primary uppercase tracking-wider">Confirmar Rescate</span>
+<h3 class="font-headline-sm text-headline-sm text-on-surface" id="modal-title">Bolsa Sorpresa</h3>
+</div>
+</div>
+<div class="p-space-md rounded-lg bg-surface-container-low mb-space-md space-y-space-xs">
+<div class="flex justify-between items-center font-body-sm text-body-sm">
+<span class="text-on-surface-variant">Comercio:</span>
+<span class="font-label-md text-label-md text-on-surface" id="modal-vendor">Nombre Comercio</span>
+</div>
+<div class="flex justify-between items-center font-body-sm text-body-sm">
+<span class="text-on-surface-variant">Horario de Retiro:</span>
+<span class="font-label-md text-label-md text-secondary" id="modal-time">Hoy 19:30 - 20:30</span>
+</div>
+<div class="flex justify-between items-center font-body-sm text-body-sm">
+<span class="text-on-surface-variant">Impacto estimado:</span>
+<span class="font-label-md text-label-md text-primary">~2.5 kg CO₂e prevenidos</span>
+</div>
+<div class="flex justify-between items-center pt-space-xs">
+<span class="font-headline-sm text-headline-sm text-on-surface">Total a pagar:</span>
+<span class="font-headline-sm text-headline-sm text-primary font-bold" id="modal-price">$5.990</span>
+</div>
+</div>
+<div class="space-y-space-sm">
+<div class="flex items-center gap-space-xs text-on-surface-variant font-body-sm text-body-sm">
+<span class="material-symbols-outlined text-primary text-[18px]">verified_user</span>
+<span>Pago seguro. Tienes 15 minutos de reserva garantizada.</span>
+</div>
+<button class="w-full py-3 rounded-lg bg-secondary-container hover:bg-secondary text-on-secondary font-label-lg text-label-lg transition-all transform active:scale-95 shadow-md flex items-center justify-center gap-space-xs" onclick="confirmModalReservation()">
+<span>Confirmar y Pagar</span>
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</button>
+</div>
+</div>
+</div>
+<!-- 1. HERO SECTION -->
+<section class="relative w-full overflow-hidden bg-gradient-to-b from-surface via-surface-container-low/40 to-surface pt-space-lg pb-space-xl">
+<!-- Atmospheric subtle glows -->
+<div class="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-primary/10 blur-3xl pointer-events-none"></div>
+<div class="absolute top-1/3 -right-24 w-80 h-80 rounded-full bg-secondary-container/10 blur-3xl pointer-events-none"></div>
+<div class="max-w-7xl mx-auto px-margin relative z-10 flex flex-col items-center text-center">
+<!-- Eco Impact Badge -->
+<div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-surface-container-lowest shadow-sm mb-space-md">
+<span class="relative flex h-2.5 w-2.5">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
+</span>
+<span class="font-label-md text-label-md text-primary font-bold tracking-tight">🌱 +50.000 kg de comida rescatada este mes</span>
+</div>
+<!-- Main Headline with Brand Contrasts -->
+<h1 class="font-display-lg text-display-lg text-on-surface max-w-4xl tracking-tight leading-tight">Rescata <span class="text-primary font-extrabold">Frutas, Verduras y Abarrotes</span> de Calidad <span class="text-secondary-container font-extrabold underline decoration-secondary-fixed-dim decoration-wavy decoration-2">Antes de que se Pierdan</span></h1>
+<!-- Subtitle -->
+<p class="font-body-lg text-body-lg text-on-surface-variant max-w-2xl mt-space-md mb-space-xl">Aprovecha superofertas en productos frescos, lácteos y abarrotes próximos a vencer en tus supermercados y fruterías locales con hasta un <strong class="text-on-surface font-semibold">70% de descuento</strong>.</p>
+<!-- Interactive Search Bar Widget Card -->
+<div class="w-full max-w-4xl bg-surface-container-lowest p-space-md sm:p-space-lg rounded-xl shadow-xl flex flex-col gap-space-md text-left">
+<div class="grid grid-cols-1 md:grid-cols-12 gap-space-sm items-center">
+<!-- Location Input -->
+<div class="md:col-span-6 relative flex items-center">
+<span class="material-symbols-outlined absolute left-3 text-primary text-[22px]">location_on</span>
+<input class="w-full h-12 pl-10 pr-4 rounded-lg bg-surface-container-low text-on-surface placeholder:text-outline font-body-md text-body-md focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary focus:outline-none transition-all" id="location-input" placeholder="Ingresa tu comuna o barrio..." type="text" value="Providencia, Santiago"/>
+</div>
+<!-- Distance Filter Selector -->
+<div class="md:col-span-3 relative flex items-center">
+<span class="material-symbols-outlined absolute left-3 text-on-surface-variant text-[20px]">radar</span>
+<select class="w-full h-12 pl-10 pr-8 rounded-lg bg-surface-container-low text-on-surface font-label-md text-label-md focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary focus:outline-none appearance-none cursor-pointer" id="distance-filter">
+<option value="3">Hasta 3 km</option>
+<option selected="" value="5">Hasta 5 km</option>
+<option value="10">Hasta 10 km</option>
+<option value="20">Toda la Ciudad</option>
+</select>
+<span class="material-symbols-outlined absolute right-3 text-on-surface-variant pointer-events-none text-[18px]">expand_more</span>
+</div>
+<!-- Search CTA Button -->
+<div class="md:col-span-3">
+<button class="w-full h-12 rounded-lg bg-secondary-container hover:bg-secondary text-on-secondary font-label-lg text-label-lg transition-all transform active:scale-95 shadow-md flex items-center justify-center gap-space-xs group" onclick="scrollToOffers()">
+<span>Explorar Ofertas</span>
+<span class="material-symbols-outlined text-[20px] transition-transform group-hover:translate-x-1">arrow_forward</span>
+</button>
+</div>
+</div>
+<!-- Category Pills Quick Selector -->
+<div class="flex items-center gap-space-xs flex-wrap pt-space-xs"><span class="font-label-sm text-label-sm text-on-surface-variant mr-1 uppercase tracking-wider">Categorías:</span>
+<button class="category-pill active px-3 py-1 rounded-full font-label-md text-label-md bg-primary text-on-primary transition-all shadow-sm" onclick="filterCategory('all', this)">Todas</button>
+<button class="category-pill px-3 py-1 rounded-full font-label-md text-label-md bg-surface-container-low text-on-surface-variant hover:bg-surface-container transition-all" onclick="filterCategory('frutas', this)">🍎 Frutas y Verduras</button>
+<button class="category-pill px-3 py-1 rounded-full font-label-md text-label-md bg-surface-container-low text-on-surface-variant hover:bg-surface-container transition-all" onclick="filterCategory('lacteos', this)">🥛 Lácteos y Huevos</button>
+<button class="category-pill px-3 py-1 rounded-full font-label-md text-label-md bg-surface-container-low text-on-surface-variant hover:bg-surface-container transition-all" onclick="filterCategory('panaderia', this)">🍞 Panadería y Cereales</button>
+<button class="category-pill px-3 py-1 rounded-full font-label-md text-label-md bg-surface-container-low text-on-surface-variant hover:bg-surface-container transition-all" onclick="filterCategory('abarrotes', this)">🥫 Abarrotes y Enlatados</button>
+<button class="category-pill px-3 py-1 rounded-full font-label-md text-label-md bg-surface-container-low text-on-surface-variant hover:bg-surface-container transition-all" onclick="filterCategory('congelados', this)">🧊 Congelados y Bebidas</button></div>
+</div>
+<!-- Trust Stat Strip Below Hero -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-space-md max-w-4xl w-full mt-space-lg pt-space-md border-t-0 text-left">
+<div class="flex items-center gap-space-sm p-space-sm rounded-lg bg-surface-container-lowest shadow-sm">
+<div class="w-10 h-10 rounded-full bg-tertiary-fixed flex items-center justify-center text-on-tertiary-fixed">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">star</span>
+</div>
+<div>
+<div class="font-label-lg text-label-lg text-on-surface">4.9 / 5.0</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant">+15.000 reseñas</div>
+</div>
+</div>
+<div class="flex items-center gap-space-sm p-space-sm rounded-lg bg-surface-container-lowest shadow-sm">
+<div class="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center text-on-primary-fixed">
+<span class="material-symbols-outlined text-[20px]">storefront</span>
+</div>
+<div>
+<div class="font-label-lg text-label-lg text-on-surface">+850 Locales</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant">Comercios certificados</div>
+</div>
+</div>
+<div class="flex items-center gap-space-sm p-space-sm rounded-lg bg-surface-container-lowest shadow-sm">
+<div class="w-10 h-10 rounded-full bg-surface-container-high flex items-center justify-center text-primary">
+<span class="material-symbols-outlined text-[20px]">lock</span>
+</div>
+<div>
+<div class="font-label-lg text-label-lg text-on-surface">Pago Seguro</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant">Transacciones 100% cifradas</div>
+</div>
+</div>
+<div class="flex items-center gap-space-sm p-space-sm rounded-lg bg-surface-container-lowest shadow-sm">
+<div class="w-10 h-10 rounded-full bg-secondary-fixed flex items-center justify-center text-secondary">
+<span class="material-symbols-outlined text-[20px]">sentiment_very_satisfied</span>
+</div>
+<div>
+<div class="font-label-lg text-label-lg text-on-surface">Garantía Fresca</div>
+<div class="font-body-sm text-body-sm text-on-surface-variant">Calidad supervisada</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- 2. LIVE DASHBOARD DE OFERTAS EN VIVO -->
+<section class="w-full py-space-xl bg-surface" id="ofertas-section">
+<div class="max-w-7xl mx-auto px-margin">
+<!-- Section Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-space-md mb-space-lg">
+<div>
+<div class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-secondary-fixed text-on-secondary-fixed font-label-sm text-label-sm uppercase tracking-wider mb-2">
+<span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
+            En Vivo Ahora
+          </div>
+<h2 class="font-headline-xl text-headline-xl text-on-surface tracking-tight">Ofertas y Lotes de Supermercado Hoy</h2>
+<p class="font-body-md text-body-md text-on-surface-variant">Alimentos frescos y despensa con fecha próxima de consumo garantizado con hasta 70% de descuento.</p>
+</div>
+<!-- Sorting & Search Bar in Grid -->
+<div class="flex items-center gap-space-sm flex-wrap">
+<div class="relative">
+<span class="material-symbols-outlined absolute left-3 top-2.5 text-on-surface-variant text-[18px]">search</span>
+<input class="h-10 pl-9 pr-3 rounded-lg bg-surface-container-lowest text-on-surface font-body-sm text-body-sm focus:outline-none focus:ring-2 focus:ring-primary shadow-sm" id="card-search" oninput="searchCards(this.value)" placeholder="Buscar pan, sushi, local..." type="text"/>
+</div>
+<select class="h-10 px-3 rounded-lg bg-surface-container-lowest text-on-surface font-label-md text-label-md shadow-sm focus:outline-none focus:ring-2 focus:ring-primary cursor-pointer" id="sort-select" onchange="sortCards(this.value)">
+<option value="urgency">Cerrando Pronto</option>
+<option value="discount">Mayor Descuento</option>
+<option value="price-low">Menor Precio</option>
+<option value="distance">Más Cercanos</option>
+</select>
+</div>
+</div>
+<!-- PRODUCT CARDS GRID (6 Bespoke Rescue Cards) -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-space-lg" id="cards-grid"><!-- CARD 1: Cesta de Frutas y Verduras Variadas -->
+<article class="product-card group bg-surface-container-lowest rounded-xl shadow-md hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden" data-category="frutas" data-discount="70" data-distance="0.8" data-price="6000">
+<div class="relative h-48 w-full overflow-hidden bg-surface-container">
+<img alt="A vibrant wooden crate full of mixed fresh colorful fruits and vegetables" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAucaK2_ZVkOQNXG7D06VHA8Xvm8-YNcnnBtV4Vy7FfXPyKj8gWjjCf2GxU8ue-GQyTK-TwdcH1YyFZ3thTKtyxhjM-R8zFI9x90yjurnE6S3WUYKJ7RMH4Q6CnP6IM2kmf6wq2rHK1SMfwspAw9d5eVvIrq4nKEQpoqwTrCifIDl-T2puEuGmqg3yeqfLtpjtqrIfaI1XpR3-_gUdk0Sp1V4qM4phl8idREbs04w6qTj5WKmZVGw9k"/>
+<div class="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-secondary-container text-on-secondary font-label-sm text-label-sm shadow-md font-bold">
+  -70% DESC
+</div>
+<div class="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-surface-container-lowest/90 backdrop-blur text-primary font-label-sm text-label-sm flex items-center gap-1 shadow-sm font-semibold">
+<span class="material-symbols-outlined text-[14px]">near_me</span>
+  0.8 km
+</div>
+<div class="absolute bottom-2 left-2 right-2 px-2.5 py-1.5 rounded-lg bg-surface-container-lowest/95 backdrop-blur text-on-surface flex items-center justify-between font-label-sm text-label-sm shadow-sm">
+<span class="flex items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined text-primary text-[16px]">schedule</span>
+  Hoy: <strong>10:00 - 19:30</strong>
+</span>
+<span class="font-bold text-secondary-container">Solo 3 disponibles</span>
+</div>
+</div>
+<div class="p-space-md flex flex-col flex-grow justify-between gap-space-sm">
+<div>
+<div class="flex items-center justify-between text-on-surface-variant font-label-sm text-label-sm mb-1">
+<span>Frutería La Huerta</span>
+<span class="flex items-center text-tertiary-container"><span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;">star</span> 4.9</span>
+</div>
+<h3 class="card-title font-headline-sm text-headline-sm text-on-surface font-semibold group-hover:text-primary transition-colors">Cesta de Frutas y Verduras Variadas</h3>
+<div class="flex items-center gap-1.5 flex-wrap mt-2 mb-1">
+<span class="px-2 py-0.5 rounded bg-surface-container-high text-on-surface font-label-sm text-label-sm font-semibold">Caja de 3.5 kg surtida</span>
+<span class="px-2 py-0.5 rounded bg-tertiary-fixed text-on-tertiary-fixed font-label-sm text-label-sm font-bold flex items-center gap-1">⏰ Consumo preferente: 2 días</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1 line-clamp-2">Surtido de frutas y verduras frescas de temporada: tomates, manzanas, zanahorias y hojas verdes crujientes.</p>
+</div>
+<div class="pt-space-xs">
+<div class="flex items-baseline justify-between mb-space-sm">
+<div>
+<span class="text-on-surface-variant line-through font-body-sm text-body-sm">$20.000</span>
+<span class="font-headline-md text-headline-md text-primary font-bold ml-1">$6.000</span>
+</div>
+<span class="font-label-sm text-label-sm text-primary bg-primary-fixed/40 px-2 py-0.5 rounded">Ahorras $14.000</span>
+</div>
+<button class="reserve-btn w-full py-2.5 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-label-md text-label-md transition-all flex items-center justify-center gap-1 shadow-sm" onclick="handleReservation('Frutería La Huerta', 'Cesta de Frutas y Verduras Variadas', '$6.000', '10:00 - 19:30', this)">
+<span class="material-symbols-outlined text-[18px]">shopping_bag</span>
+<span>Reservar Lote</span>
+</button>
+</div>
+</div>
+</article>
+<!-- CARD 2: Pack Lácteos, Yogures y Huevos -->
+<article class="product-card group bg-surface-container-lowest rounded-xl shadow-md hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden" data-category="lacteos" data-discount="70" data-distance="1.2" data-price="4500">
+<div class="relative h-48 w-full overflow-hidden bg-surface-container">
+<img alt="Assortment of dairy products, fresh milk bottles, yogurts, artisan cheeses and eggs" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCT8dvhVvg32dgKwaU1HmvxmyDwpBlCicBGSJnRr0a4rwKKk9zlQfnKsT5BN4-brCPqbflrsV1LqlAXZQ7Hwzuz9xFpFKthU2YP80L81Gj1JcnQClHrNkhAV21hNJP_W0nif2KxDBMQvRJdbJrNYi1ctsg74iVop6pSkjmajorrEL2As0w8sqWe6SzVBFyTwP6pn2R9wrOqAjPVcx7NOVw4i1NVJvtWQ93F1Ob3W-0_BW4UPaMKMZET"/>
+<div class="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-secondary-container text-on-secondary font-label-sm text-label-sm shadow-md font-bold">
+  -70% DESC
+</div>
+<div class="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-surface-container-lowest/90 backdrop-blur text-primary font-label-sm text-label-sm flex items-center gap-1 shadow-sm font-semibold">
+<span class="material-symbols-outlined text-[14px]">near_me</span>
+  1.2 km
+</div>
+<div class="absolute bottom-2 left-2 right-2 px-2.5 py-1.5 rounded-lg bg-surface-container-lowest/95 backdrop-blur text-on-surface flex items-center justify-between font-label-sm text-label-sm shadow-sm">
+<span class="flex items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined text-primary text-[16px]">schedule</span>
+  Hoy: <strong>14:00 - 20:00</strong>
+</span>
+<span class="font-bold text-secondary-container">Solo 2 disponibles</span>
+</div>
+</div>
+<div class="p-space-md flex flex-col flex-grow justify-between gap-space-sm">
+<div>
+<div class="flex items-center justify-between text-on-surface-variant font-label-sm text-label-sm mb-1">
+<span>Supermercado Central</span>
+<span class="flex items-center text-tertiary-container"><span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;">star</span> 4.8</span>
+</div>
+<h3 class="card-title font-headline-sm text-headline-sm text-on-surface font-semibold group-hover:text-primary transition-colors">Pack Lácteos, Yogures y Huevos</h3>
+<div class="flex items-center gap-1.5 flex-wrap mt-2 mb-1">
+<span class="px-2 py-0.5 rounded bg-surface-container-high text-on-surface font-label-sm text-label-sm font-semibold">Pack 6 unidades + 1 docena</span>
+<span class="px-2 py-0.5 rounded bg-secondary-fixed text-on-secondary-fixed font-label-sm text-label-sm font-bold flex items-center gap-1">⚠️ Vence en 3 días</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1 line-clamp-2">Incluye leche fresca entera, yogures naturales artesanales, quesillos y huevos de campo de calidad intacta.</p>
+</div>
+<div class="pt-space-xs">
+<div class="flex items-baseline justify-between mb-space-sm">
+<div>
+<span class="text-on-surface-variant line-through font-body-sm text-body-sm">$15.000</span>
+<span class="font-headline-md text-headline-md text-primary font-bold ml-1">$4.500</span>
+</div>
+<span class="font-label-sm text-label-sm text-primary bg-primary-fixed/40 px-2 py-0.5 rounded">Ahorras $10.500</span>
+</div>
+<button class="reserve-btn w-full py-2.5 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-label-md text-label-md transition-all flex items-center justify-center gap-1 shadow-sm" onclick="handleReservation('Supermercado Central', 'Pack Lácteos, Yogures y Huevos', '$4.500', '14:00 - 20:00', this)">
+<span class="material-symbols-outlined text-[18px]">shopping_bag</span>
+<span>Reservar Lote</span>
+</button>
+</div>
+</div>
+</article>
+<!-- CARD 3: Lote de Panadería, Hogazas y Galletas -->
+<article class="product-card group bg-surface-container-lowest rounded-xl shadow-md hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden" data-category="panaderia" data-discount="66" data-distance="1.5" data-price="4000">
+<div class="relative h-48 w-full overflow-hidden bg-surface-container">
+<img alt="Assorted fresh bakery breads, rustic artisanal sourdough loaf, croissants, packaged oat cookies" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDTRPvWtmmVMPRLVkYpLxVjGkg2912P4L5dk81lE-xfGl_RE2aXBZDL__zJjmbOEEYKkiwUWio664qA1Fx36QHXTIV8ohlbDujSqY4W8cnulYr94W34gqru8AsaPUA3O9dXZsXF8g6GVQcgUyLb-z3i6TqKK2YKq8nknpjWPRCSieilPdMJ8qtFn2a2aOo16AmC6cYrxmn_TlLpR1dRLhGOU5B5EsNviNV-4KDzVmp06To5B2V6GPtn"/>
+<div class="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-secondary-container text-on-secondary font-label-sm text-label-sm shadow-md font-bold">
+  -66% DESC
+</div>
+<div class="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-surface-container-lowest/90 backdrop-blur text-primary font-label-sm text-label-sm flex items-center gap-1 shadow-sm font-semibold">
+<span class="material-symbols-outlined text-[14px]">near_me</span>
+  1.5 km
+</div>
+<div class="absolute bottom-2 left-2 right-2 px-2.5 py-1.5 rounded-lg bg-surface-container-lowest/95 backdrop-blur text-on-surface flex items-center justify-between font-label-sm text-label-sm shadow-sm">
+<span class="flex items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined text-primary text-[16px]">schedule</span>
+  Hoy: <strong>17:00 - 20:30</strong>
+</span>
+<span class="font-bold text-error flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-error animate-ping"></span>
+  ¡Último paquete!
+</span>
+</div>
+</div>
+<div class="p-space-md flex flex-col flex-grow justify-between gap-space-sm">
+<div>
+<div class="flex items-center justify-between text-on-surface-variant font-label-sm text-label-sm mb-1">
+<span>Panadería El Panal</span>
+<span class="flex items-center text-tertiary-container"><span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;">star</span> 4.9</span>
+</div>
+<h3 class="card-title font-headline-sm text-headline-sm text-on-surface font-semibold group-hover:text-primary transition-colors">Lote de Panadería, Hogazas y Galletas</h3>
+<div class="flex items-center gap-1.5 flex-wrap mt-2 mb-1">
+<span class="px-2 py-0.5 rounded bg-surface-container-high text-on-surface font-label-sm text-label-sm font-semibold">Bolsa de 2 kg artesanal</span>
+<span class="px-2 py-0.5 rounded bg-primary-fixed/40 text-on-primary-fixed font-label-sm text-label-sm font-bold flex items-center gap-1">✨ Elaborado hoy / Oferta del día</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1 line-clamp-2">Hogazas de masa madre campesina, baguettes crujientes y galletas de avena horneadas a primera hora.</p>
+</div>
+<div class="pt-space-xs">
+<div class="flex items-baseline justify-between mb-space-sm">
+<div>
+<span class="text-on-surface-variant line-through font-body-sm text-body-sm">$12.000</span>
+<span class="font-headline-md text-headline-md text-primary font-bold ml-1">$4.000</span>
+</div>
+<span class="font-label-sm text-label-sm text-primary bg-primary-fixed/40 px-2 py-0.5 rounded">Ahorras $8.000</span>
+</div>
+<button class="reserve-btn w-full py-2.5 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-label-md text-label-md transition-all flex items-center justify-center gap-1 shadow-sm" onclick="handleReservation('Panadería El Panal', 'Lote de Panadería, Hogazas y Galletas', '$4.000', '17:00 - 20:30', this)">
+<span class="material-symbols-outlined text-[18px]">shopping_bag</span>
+<span>Reservar Lote</span>
+</button>
+</div>
+</div>
+</article>
+<!-- CARD 4: Lote Abarrotes y Despensa Básica -->
+<article class="product-card group bg-surface-container-lowest rounded-xl shadow-md hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden" data-category="abarrotes" data-discount="65" data-distance="2.1" data-price="6300">
+<div class="relative h-48 w-full overflow-hidden bg-surface-container">
+<img alt="Pantry groceries and canned goods" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDPT_up-42sJ2v1Fws8fAH-kbZWivzzCUxB4ZnVKcbdMn2L814vTZXYD4QAOT-ojTyg7K8vwkooP0e72lKZStPyvbkCdQCpMJ85uohf1-Jm5rMdnlfLvasAwYe1ej1DrAKnJFORtJkg0QN1C-NgygIz4SLjcxhiSxyUbmYmQ05WOsxgDgpQcRPud8wf9xy3I7Enqs_rzwWtXnLoD7dDHn7ZpVGwlON1hytNlKbKDK9tFk6Jf12rS1id"/>
+<div class="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-secondary text-on-secondary font-label-sm text-label-sm shadow-md font-bold">
+  -65% DESC
+</div>
+<div class="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-surface-container-lowest/90 backdrop-blur text-primary font-label-sm text-label-sm flex items-center gap-1 shadow-sm font-semibold">
+<span class="material-symbols-outlined text-[14px]">near_me</span>
+  2.1 km
+</div>
+<div class="absolute bottom-2 left-2 right-2 px-2.5 py-1.5 rounded-lg bg-surface-container-lowest/95 backdrop-blur text-on-surface flex items-center justify-between font-label-sm text-label-sm shadow-sm">
+<span class="flex items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined text-primary text-[16px]">schedule</span>
+  Hoy: <strong>11:00 - 20:00</strong>
+</span>
+<span class="font-bold text-on-surface-variant">4 disponibles</span>
+</div>
+</div>
+<div class="p-space-md flex flex-col flex-grow justify-between gap-space-sm">
+<div>
+<div class="flex items-center justify-between text-on-surface-variant font-label-sm text-label-sm mb-1">
+<span>Minimarket Los Andes</span>
+<span class="flex items-center text-tertiary-container"><span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;">star</span> 4.7</span>
+</div>
+<h3 class="card-title font-headline-sm text-headline-sm text-on-surface font-semibold group-hover:text-primary transition-colors">Lote Abarrotes y Despensa Básica</h3>
+<div class="flex items-center gap-1.5 flex-wrap mt-2 mb-1">
+<span class="px-2 py-0.5 rounded bg-surface-container-high text-on-surface font-label-sm text-label-sm font-semibold">Pack 5 conservas y pastas</span>
+<span class="px-2 py-0.5 rounded bg-tertiary-fixed text-on-tertiary-fixed font-label-sm text-label-sm font-bold flex items-center gap-1">🥫 Consumo preferente: 10 días</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1 line-clamp-2">Pastas integrales italianas, conservas de tomate pelado, legumbres y salsas listas con fecha corta de venta.</p>
+</div>
+<div class="pt-space-xs">
+<div class="flex items-baseline justify-between mb-space-sm">
+<div>
+<span class="text-on-surface-variant line-through font-body-sm text-body-sm">$18.000</span>
+<span class="font-headline-md text-headline-md text-primary font-bold ml-1">$6.300</span>
+</div>
+<span class="font-label-sm text-label-sm text-primary bg-primary-fixed/40 px-2 py-0.5 rounded">Ahorras $11.700</span>
+</div>
+<button class="reserve-btn w-full py-2.5 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-label-md text-label-md transition-all flex items-center justify-center gap-1 shadow-sm" onclick="handleReservation('Minimarket Los Andes', 'Lote Abarrotes y Despensa Básica', '$6.300', '11:00 - 20:00', this)">
+<span class="material-symbols-outlined text-[18px]">shopping_bag</span>
+<span>Reservar Lote</span>
+</button>
+</div>
+</div>
+</article>
+<!-- CARD 5: Combo Verduras Orgánicas para Sopa y Guisos -->
+<article class="product-card group bg-surface-container-lowest rounded-xl shadow-md hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden" data-category="frutas" data-discount="68" data-distance="1.9" data-price="4480">
+<div class="relative h-48 w-full overflow-hidden bg-surface-container">
+<img alt="Organic fresh market vegetables" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB9aPimD7RXr7qQSeslsFQxoBfFduSMorz0QNy1ZBnw_VtTZjKHwbrmBDGRfhsXBw5bcJVJR6le3F-0mO8u5aHsowI_9k_4eLEbgOKQPR4sOcVGD0OUEPSY9uOLMZOPaY--MxydET-bXoz00CoHNY5GLN00EyK3kL48KwjL1_tWD3MEc7GwCENEq9ZGj84ng7rqvEDZajDwdLRFTYucDbkZql-48dkRVdsBv3kR1eULw9B1puCLxAkP"/>
+<div class="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-secondary text-on-secondary font-label-sm text-label-sm shadow-md font-bold">
+  -68% DESC
+</div>
+<div class="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-surface-container-lowest/90 backdrop-blur text-primary font-label-sm text-label-sm flex items-center gap-1 shadow-sm font-semibold">
+<span class="material-symbols-outlined text-[14px]">near_me</span>
+  1.9 km
+</div>
+<div class="absolute bottom-2 left-2 right-2 px-2.5 py-1.5 rounded-lg bg-surface-container-lowest/95 backdrop-blur text-on-surface flex items-center justify-between font-label-sm text-label-sm shadow-sm">
+<span class="flex items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined text-primary text-[16px]">schedule</span>
+  Hoy: <strong>Hasta las 19:30</strong>
+</span>
+<span class="font-bold text-on-surface-variant">5 disponibles</span>
+</div>
+</div>
+<div class="p-space-md flex flex-col flex-grow justify-between gap-space-sm">
+<div>
+<div class="flex items-center justify-between text-on-surface-variant font-label-sm text-label-sm mb-1">
+<span>BioFresco Market</span>
+<span class="flex items-center text-tertiary-container"><span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;">star</span> 4.8</span>
+</div>
+<h3 class="card-title font-headline-sm text-headline-sm text-on-surface font-semibold group-hover:text-primary transition-colors">Combo Verduras Orgánicas para Sopa y Guisos</h3>
+<div class="flex items-center gap-1.5 flex-wrap mt-2 mb-1">
+<span class="px-2 py-0.5 rounded bg-surface-container-high text-on-surface font-label-sm text-label-sm font-semibold">Malla de 3 kg seleccionada</span>
+<span class="px-2 py-0.5 rounded bg-tertiary-fixed text-on-tertiary-fixed font-label-sm text-label-sm font-bold flex items-center gap-1">⏰ Consumo ideal: 3 días</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1 line-clamp-2">Zapallo, puerros, apio, zanahorias y papas ideales para cocinar caldos y sopas caseras nutritivas.</p>
+</div>
+<div class="pt-space-xs">
+<div class="flex items-baseline justify-between mb-space-sm">
+<div>
+<span class="text-on-surface-variant line-through font-body-sm text-body-sm">$14.000</span>
+<span class="font-headline-md text-headline-md text-primary font-bold ml-1">$4.480</span>
+</div>
+<span class="font-label-sm text-label-sm text-primary bg-primary-fixed/40 px-2 py-0.5 rounded">Ahorras $9.520</span>
+</div>
+<button class="reserve-btn w-full py-2.5 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-label-md text-label-md transition-all flex items-center justify-center gap-1 shadow-sm" onclick="handleReservation('BioFresco Market', 'Combo Verduras Orgánicas para Sopa y Guisos', '$4.480', 'Hasta las 19:30', this)">
+<span class="material-symbols-outlined text-[18px]">shopping_bag</span>
+<span>Reservar Lote</span>
+</button>
+</div>
+</div>
+</article>
+<!-- CARD 6: Pack Quesos Artesanales y Mantequilla -->
+<article class="product-card group bg-surface-container-lowest rounded-xl shadow-md hover:shadow-xl transition-all duration-300 flex flex-col overflow-hidden" data-category="lacteos" data-discount="60" data-distance="2.7" data-price="6600">
+<div class="relative h-48 w-full overflow-hidden bg-surface-container">
+<img alt="Artisan cheeses and butter on grocery counter" class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" src="https://lh3.googleusercontent.com/aida-public/AB6AXuANBEROq1UDo01gzItsTsU8Ebj1fvEx-tDzUrcfjW9dKwX5Ino2lC6ptoLXnoB8qJ1ZvX7WeuB5t_xKLRs8jeFN2699Ki8HuvhYDQ8y_V2AyM1Nhx4fnhMoOlnQFo1EqtnrOikhyC__BihNxEVbhaVdswvGe208OuTcOCgpGPAgSuKC8V-y4xI-jD4yvnNROIPe47biXEBp-8NaaKESB0yJpwYjrx4YNZvMoFigvbaJPn4zq3blzS7R"/>
+<div class="absolute top-3 left-3 px-2.5 py-1 rounded-full bg-secondary text-on-secondary font-label-sm text-label-sm shadow-md font-bold">
+  -60% DESC
+</div>
+<div class="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-surface-container-lowest/90 backdrop-blur text-primary font-label-sm text-label-sm flex items-center gap-1 shadow-sm font-semibold">
+<span class="material-symbols-outlined text-[14px]">near_me</span>
+  2.7 km
+</div>
+<div class="absolute bottom-2 left-2 right-2 px-2.5 py-1.5 rounded-lg bg-surface-container-lowest/95 backdrop-blur text-on-surface flex items-center justify-between font-label-sm text-label-sm shadow-sm">
+<span class="flex items-center gap-1 text-on-surface-variant">
+<span class="material-symbols-outlined text-primary text-[16px]">schedule</span>
+  Hoy: <strong>16:00 - 20:30</strong>
+</span>
+<span class="font-bold text-secondary-container">Solo 2 disponibles</span>
+</div>
+</div>
+<div class="p-space-md flex flex-col flex-grow justify-between gap-space-sm">
+<div>
+<div class="flex items-center justify-between text-on-surface-variant font-label-sm text-label-sm mb-1">
+<span>Frigorífico &amp; Almacén San Juan</span>
+<span class="flex items-center text-tertiary-container"><span class="material-symbols-outlined text-[15px]" style="font-variation-settings: 'FILL' 1;">star</span> 4.9</span>
+</div>
+<h3 class="card-title font-headline-sm text-headline-sm text-on-surface font-semibold group-hover:text-primary transition-colors">Pack Quesos Artesanales y Mantequilla</h3>
+<div class="flex items-center gap-1.5 flex-wrap mt-2 mb-1">
+<span class="px-2 py-0.5 rounded bg-surface-container-high text-on-surface font-label-sm text-label-sm font-semibold">Pack 850g refrigerado</span>
+<span class="px-2 py-0.5 rounded bg-secondary-fixed text-on-secondary-fixed font-label-sm text-label-sm font-bold flex items-center gap-1">⚠️ Vence en 4 días</span>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant mt-1 line-clamp-2">Cuña de queso mantecoso de fundo, queso gouda laminado y barra de mantequilla sin sal en perfecto estado.</p>
+</div>
+<div class="pt-space-xs">
+<div class="flex items-baseline justify-between mb-space-sm">
+<div>
+<span class="text-on-surface-variant line-through font-body-sm text-body-sm">$16.500</span>
+<span class="font-headline-md text-headline-md text-primary font-bold ml-1">$6.600</span>
+</div>
+<span class="font-label-sm text-label-sm text-primary bg-primary-fixed/40 px-2 py-0.5 rounded">Ahorras $9.900</span>
+</div>
+<button class="reserve-btn w-full py-2.5 rounded-lg bg-primary hover:bg-primary-container text-on-primary font-label-md text-label-md transition-all flex items-center justify-center gap-1 shadow-sm" onclick="handleReservation('Frigorífico &amp; Almacén San Juan', 'Pack Quesos Artesanales y Mantequilla', '$6.600', '16:00 - 20:30', this)">
+<span class="material-symbols-outlined text-[18px]">shopping_bag</span>
+<span>Reservar Lote</span>
+</button>
+</div>
+</div>
+</article></div>
+</div>
+</section>
+<!-- 3. CÓMO FUNCIONA FOODSAVE -->
+<section class="w-full py-space-xl bg-surface-container-low">
+<div class="max-w-7xl mx-auto px-margin">
+<div class="text-center max-w-2xl mx-auto mb-space-xl">
+<span class="font-label-sm text-label-sm text-primary uppercase tracking-widest font-bold">Simple, rápido y delicioso</span>
+<h2 class="font-headline-xl text-headline-xl text-on-surface tracking-tight mt-1">¿Cómo Funciona FoodSave?</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mt-2">En solo tres pasos evitas que alimentos de primera calidad terminen en la basura.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-space-lg relative"><!-- Step 1 -->
+<div class="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm hover:shadow-md transition-shadow relative flex flex-col items-start">
+<div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-headline-md text-headline-md font-bold mb-space-md">
+  1
+</div>
+<div class="flex items-center gap-space-xs mb-space-xs text-primary font-label-md text-label-md">
+<span class="material-symbols-outlined text-[20px]">explore</span>
+<span>Explora y Descubre</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-2 font-semibold">Encuentra supermercados, fruterías y almacenes cercanos</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Revisa lotes de frutas maduras, verduras listas para consumo, lácteos y abarrotes con fecha próxima a una fracción de su valor de góndola.</p>
+<div class="mt-space-md pt-space-sm border-t-0 flex items-center gap-2 text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-primary text-[16px]">check_circle</span>
+  Filtra por distancia y categoría de despensa
+</div>
+</div>
+<!-- Step 2 -->
+<div class="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm hover:shadow-md transition-shadow relative flex flex-col items-start">
+<div class="w-12 h-12 rounded-xl bg-secondary-fixed text-on-secondary-fixed flex items-center justify-center font-headline-md text-headline-md font-bold mb-space-md">
+  2
+</div>
+<div class="flex items-center gap-space-xs mb-space-xs text-secondary font-label-md text-label-md">
+<span class="material-symbols-outlined text-[20px]">shopping_cart_checkout</span>
+<span>Reserva con Descuento</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-2 font-semibold">Reserva tus lotes de frescos y abarrotes con hasta 70% de descuento</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Asegura canastas de frutas o paquetes de lácteos y abarrotes pagando de forma 100% protegida y directa en la plataforma.</p>
+<div class="mt-space-md pt-space-sm border-t-0 flex items-center gap-2 text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-primary text-[16px]">check_circle</span>
+  Confirmación digital y retiro garantizado
+</div>
+</div>
+<!-- Step 3 -->
+<div class="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm hover:shadow-md transition-shadow relative flex flex-col items-start">
+<div class="w-12 h-12 rounded-xl bg-tertiary-fixed text-on-tertiary-fixed flex items-center justify-center font-headline-md text-headline-md font-bold mb-space-md">
+  3
+</div>
+<div class="flex items-center gap-space-xs mb-space-xs text-tertiary font-label-md text-label-md">
+<span class="material-symbols-outlined text-[20px]">storefront</span>
+<span>Pasa y Rescata</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-2 font-semibold">Retira en el local y evita que alimentos perfectos terminen en la basura</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Muestra tu comprobante digital en caja, recoge tus alimentos de calidad comprobada y contribuye activamente al cuidado ambiental.</p>
+<div class="mt-space-md pt-space-sm border-t-0 flex items-center gap-2 text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-primary text-[16px]">check_circle</span>
+  Ahorro inteligente y sostenible
+</div>
+</div></div>
+</div>
+</section>
+<!-- 4. CONTADOR DE IMPACTO AMBIENTAL Y SOCIAL (Métricas Dinámicas) -->
+<section class="w-full py-space-xl bg-primary text-on-primary relative overflow-hidden">
+<!-- Visual background accent lines -->
+<div class="absolute -right-20 -bottom-20 w-96 h-96 rounded-full bg-primary-container opacity-40 blur-2xl"></div>
+<div class="absolute -left-20 -top-20 w-80 h-80 rounded-full bg-primary-fixed-dim opacity-20 blur-2xl"></div>
+<div class="max-w-7xl mx-auto px-margin relative z-10">
+<div class="text-center max-w-3xl mx-auto mb-space-xl">
+<span class="px-3 py-1 rounded-full bg-primary-fixed/20 text-primary-fixed font-label-sm text-label-sm uppercase tracking-wider">Impacto Colectivo Verificado</span>
+<h2 class="font-headline-xl text-headline-xl mt-space-xs font-bold text-on-primary">Juntos Marcamos la Diferencia</h2>
+<p class="font-body-lg text-body-lg text-on-primary-container mt-2">Cada plato rescatado equivale a menos emisiones de gases nocivos, menos agua desperdiciada y mayor apoyo a las familias locales.</p>
+</div>
+<!-- Impact Stats Grid -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-space-md text-center">
+<div class="p-space-lg rounded-xl bg-surface-container-lowest/10 backdrop-blur-sm flex flex-col items-center">
+<span class="material-symbols-outlined text-[36px] text-primary-fixed mb-space-xs">nutrition</span>
+<span class="font-display-lg text-display-lg text-on-primary font-black">+52.480 kg</span>
+<span class="font-label-lg text-label-lg text-primary-fixed mt-1">Comida Rescatada</span>
+<span class="font-body-sm text-body-sm text-on-primary-container/80 mt-1">Evitada de terminar en rellenos sanitarios</span>
+</div>
+<div class="p-space-lg rounded-xl bg-surface-container-lowest/10 backdrop-blur-sm flex flex-col items-center">
+<span class="material-symbols-outlined text-[36px] text-primary-fixed mb-space-xs">cloud_off</span>
+<span class="font-display-lg text-display-lg text-on-primary font-black">+131,2 Ton</span>
+<span class="font-label-lg text-label-lg text-primary-fixed mt-1">De CO₂e Mitigadas</span>
+<span class="font-body-sm text-body-sm text-on-primary-container/80 mt-1">Equivalente a retirar 62 autos por un año</span>
+</div>
+<div class="p-space-lg rounded-xl bg-surface-container-lowest/10 backdrop-blur-sm flex flex-col items-center">
+<span class="material-symbols-outlined text-[36px] text-secondary-fixed mb-space-xs">savings</span>
+<span class="font-display-lg text-display-lg text-on-primary font-black">+$118,5 M</span>
+<span class="font-label-lg text-label-lg text-secondary-fixed mt-1">Ahorro en Familias</span>
+<span class="font-body-sm text-body-sm text-on-primary-container/80 mt-1">Ahorro económico directo para la comunidad</span>
+</div>
+<div class="p-space-lg rounded-xl bg-surface-container-lowest/10 backdrop-blur-sm flex flex-col items-center">
+<span class="material-symbols-outlined text-[36px] text-tertiary-fixed mb-space-xs">handshake</span>
+<span class="font-display-lg text-display-lg text-on-primary font-black">+18.200</span>
+<span class="font-label-lg text-label-lg text-tertiary-fixed mt-1">Comidas Donadas</span>
+<span class="font-body-sm text-body-sm text-on-primary-container/80 mt-1">Canalizadas a comedores y bancos de alimentos</span>
+</div>
+</div>
+<!-- Equivalence Graphic Visualizer Mini-Bar -->
+<div class="mt-space-lg p-space-md rounded-xl bg-primary-container/60 backdrop-blur flex flex-col md:flex-row items-center justify-between gap-space-md">
+<div class="flex items-center gap-space-sm">
+<div class="w-10 h-10 rounded-full bg-primary-fixed/30 flex items-center justify-center text-primary-fixed">
+<span class="material-symbols-outlined text-[24px]">forest</span>
+</div>
+<div class="text-left">
+<span class="font-label-md text-label-md text-on-primary">Equivalencia Ecológica Directa</span>
+<p class="font-body-sm text-body-sm text-on-primary-container">El rescate de este mes equivale a preservar más de <strong>6.560 árboles adultos</strong> y <strong>42 millones de litros de agua dulce</strong>.</p>
+</div>
+</div>
+<a class="px-space-md py-2 rounded-lg bg-surface-container-lowest text-primary font-label-md text-label-md hover:bg-surface-container-low transition-colors whitespace-nowrap shadow-sm" href="#">
+          Ver Auditoría Verde
+        </a>
+</div>
+</div>
+</section>
+<!-- 5. SECCIÓN PARA COMERCIOS ALIADOS (B2B) -->
+<section class="w-full py-space-xl bg-surface">
+<div class="max-w-7xl mx-auto px-margin">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-space-xl items-center">
+<!-- Left Side: Pitch & Benefits -->
+<div class="lg:col-span-6 flex flex-col gap-space-md">
+<div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-secondary-fixed text-on-secondary-fixed font-label-sm text-label-sm uppercase tracking-wider self-start">
+<span class="material-symbols-outlined text-[16px]">storefront</span>
+            Para Comercios y Locales
+          </div>
+<h2 class="font-headline-xl text-headline-xl text-on-surface tracking-tight">Supermercados, Fruterías y Minimarkets: Conviertan sus Mermas en Ingresos</h2>
+<p class="font-body-lg text-body-lg text-on-surface-variant">
+            No botes la comida que preparaste con dedicación. Más de 850 panaderías, restaurantes, cafeterías y fruterías ya reducen sus mermas al mínimo con FoodSave.
+          </p>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-space-md pt-space-xs">
+<div class="flex items-start gap-space-xs">
+<span class="material-symbols-outlined text-primary text-[22px] flex-shrink-0">check_box</span>
+<div>
+<h4 class="font-label-lg text-label-lg text-on-surface">Cero Costo de Registro</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Sin mensualidades ni costos fijos. Solo cobramos una pequeña comisión por paquete vendido.</p>
+</div>
+</div>
+<div class="flex items-start gap-space-xs">
+<span class="material-symbols-outlined text-primary text-[22px] flex-shrink-0">check_box</span>
+<div>
+<h4 class="font-label-lg text-label-lg text-on-surface">Recupera Costos</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Convierte materias primas y mano de obra no vendida en liquidez inmediata diaria.</p>
+</div>
+</div>
+<div class="flex items-start gap-space-xs">
+<span class="material-symbols-outlined text-primary text-[22px] flex-shrink-0">check_box</span>
+<div>
+<h4 class="font-label-lg text-label-lg text-on-surface">Nuevos Clientes Locales</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant">El 78% de los usuarios vuelven al local a consumir productos de carta a precio completo.</p>
+</div>
+</div>
+<div class="flex items-start gap-space-xs">
+<span class="material-symbols-outlined text-primary text-[22px] flex-shrink-0">check_box</span>
+<div>
+<h4 class="font-label-lg text-label-lg text-on-surface">Sello Sustentable</h4>
+<p class="font-body-sm text-body-sm text-on-surface-variant">Posiciónate como una marca responsable con nuestro sello oficial "Local Cero Desperdicio".</p>
+</div>
+</div>
+</div>
+<div class="p-space-md rounded-xl bg-surface-container-low flex items-center gap-space-md mt-space-xs">
+<div class="w-12 h-12 rounded-full bg-primary-fixed flex items-center justify-center text-on-primary-fixed flex-shrink-0">
+<span class="material-symbols-outlined text-[24px]">verified</span>
+</div>
+<div class="font-body-sm text-body-sm text-on-surface">
+<strong class="font-semibold block text-on-surface font-label-md text-label-md">Activación Express en 24 Horas</strong>
+              Nuestro equipo configura tu catálogo y entrega el kit de empaques biodegradables inicial sin costo.
+            </div>
+</div>
+</div>
+<!-- Right Side: Express Registration Form Card -->
+<div class="lg:col-span-6">
+<div class="bg-surface-container-lowest p-space-lg sm:p-space-xl rounded-xl shadow-xl relative">
+<div class="flex items-center justify-between mb-space-md">
+<div>
+<span class="font-label-sm text-label-sm text-primary uppercase tracking-wider font-bold">Inscripción B2B</span>
+<h3 class="font-headline-md text-headline-md text-on-surface font-bold">Registra tu Local Hoy</h3>
+</div>
+<span class="material-symbols-outlined text-primary text-[32px]">store</span>
+</div>
+<form class="space-y-space-sm" id="b2b-form" onsubmit="handleB2BSubmit(event)">
+<div>
+<label class="block font-label-sm text-label-sm text-on-surface-variant mb-1">Nombre Comercial del Local *</label>
+<input class="w-full h-11 px-3 rounded-lg bg-surface-container-low text-on-surface font-body-sm text-body-sm focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Ej. Cafetería y Panadería Doña Rosa" required="" type="text"/>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-space-sm">
+<div>
+<label class="block font-label-sm text-label-sm text-on-surface-variant mb-1">Tipo de Comercio *</label>
+<select class="w-full h-11 px-3 rounded-lg bg-surface-container-low text-on-surface font-body-sm text-body-sm focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary focus:outline-none cursor-pointer" required="">
+<option disabled="" selected="" value="">Selecciona tipo...</option>
+<option value="panaderia">Panadería / Pastelería</option>
+<option value="restaurante">Restaurante / Cafetería</option>
+<option value="verduleria">Frutas y Verduras / Verdulería</option>
+<option value="sushi">Sushi / Comida Rápida</option>
+<option value="supermercado">Minimarket / Almacén</option>
+<option value="otro">Otro negocio gastronómico</option>
+</select>
+</div>
+<div>
+<label class="block font-label-sm text-label-sm text-on-surface-variant mb-1">Comuna / Ciudad *</label>
+<input class="w-full h-11 px-3 rounded-lg bg-surface-container-low text-on-surface font-body-sm text-body-sm focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary focus:outline-none" placeholder="Ej. Providencia, Santiago" required="" type="text"/>
+</div>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-space-sm">
+<div>
+<label class="block font-label-sm text-label-sm text-on-surface-variant mb-1">Email de Contacto *</label>
+<input class="w-full h-11 px-3 rounded-lg bg-surface-container-low text-on-surface font-body-sm text-body-sm focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary focus:outline-none" placeholder="contacto@negocio.cl" required="" type="email"/>
+</div>
+<div>
+<label class="block font-label-sm text-label-sm text-on-surface-variant mb-1">Teléfono o WhatsApp *</label>
+<input class="w-full h-11 px-3 rounded-lg bg-surface-container-low text-on-surface font-body-sm text-body-sm focus:bg-surface-container-lowest focus:ring-2 focus:ring-primary focus:outline-none" placeholder="+56 9 8765 4321" required="" type="tel"/>
+</div>
+</div>
+<div>
+<label class="block font-label-sm text-label-sm text-on-surface-variant mb-1">Estimación de paquetes sobrantes diarios</label>
+<div class="flex items-center gap-space-xs">
+<label class="flex-1 text-center py-2 rounded-lg bg-surface-container-low hover:bg-surface-container font-label-sm text-label-sm cursor-pointer has-[:checked]:bg-primary-container has-[:checked]:text-on-primary-container transition-colors">
+<input checked="" class="sr-only" name="surplus" type="radio" value="1-5"/> 1 a 5
+                  </label>
+<label class="flex-1 text-center py-2 rounded-lg bg-surface-container-low hover:bg-surface-container font-label-sm text-label-sm cursor-pointer has-[:checked]:bg-primary-container has-[:checked]:text-on-primary-container transition-colors">
+<input class="sr-only" name="surplus" type="radio" value="5-15"/> 5 a 15
+                  </label>
+<label class="flex-1 text-center py-2 rounded-lg bg-surface-container-low hover:bg-surface-container font-label-sm text-label-sm cursor-pointer has-[:checked]:bg-primary-container has-[:checked]:text-on-primary-container transition-colors">
+<input class="sr-only" name="surplus" type="radio" value="+15"/> +15
+                  </label>
+</div>
+</div>
+<div class="pt-space-xs">
+<button class="w-full h-12 rounded-lg bg-secondary-container hover:bg-secondary text-on-secondary font-label-lg text-label-lg transition-all flex items-center justify-center gap-space-xs shadow-md" id="b2b-submit-btn" type="submit">
+<span>Unirse como Aliado FoodSave</span>
+<span class="material-symbols-outlined text-[18px]">send</span>
+</button>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant text-center">
+                Te contactaremos hoy mismo por WhatsApp para agendar una prueba piloto.
+              </p>
+</form>
+<!-- Success Overlay inside Card after submission -->
+<div class="hidden absolute inset-0 bg-surface-container-lowest rounded-xl p-space-lg flex-col items-center justify-center text-center" id="b2b-success">
+<div class="w-16 h-16 rounded-full bg-primary/20 text-primary flex items-center justify-center mb-space-sm animate-bounce">
+<span class="material-symbols-outlined text-[36px]">verified</span>
+</div>
+<h4 class="font-headline-sm text-headline-sm text-on-surface font-bold">¡Solicitud Recibida!</h4>
+<p class="font-body-md text-body-md text-on-surface-variant mt-2 max-w-sm">
+                Un asesor especializado de FoodSave revisará los datos de tu comercio y se comunicará en menos de 2 horas.
+              </p>
+<button class="mt-space-md px-space-md py-2 rounded-lg bg-primary text-on-primary font-label-md text-label-md" onclick="resetB2BForm()">
+                Enviar otra solicitud
+              </button>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- 6. TESTIMONIOS Y COMUNIDAD -->
+<section class="w-full py-space-xl bg-surface-container-low">
+<div class="max-w-7xl mx-auto px-margin">
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-space-md mb-space-lg">
+<div>
+<span class="font-label-sm text-label-sm text-primary uppercase tracking-widest font-bold">Historias Reales</span>
+<h2 class="font-headline-xl text-headline-xl text-on-surface tracking-tight mt-1">La Comunidad FoodSave Opina</h2>
+</div>
+<div class="flex items-center gap-2">
+<span class="font-label-md text-label-md text-on-surface-variant">Calificación promedio 4.9/5 en tiendas de apps</span>
+<div class="flex text-tertiary-container">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">star</span>
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">star</span>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-space-lg"><!-- Step 1 -->
+<div class="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm hover:shadow-md transition-shadow relative flex flex-col items-start">
+<div class="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center font-headline-md text-headline-md font-bold mb-space-md">
+  1
+</div>
+<div class="flex items-center gap-space-xs mb-space-xs text-primary font-label-md text-label-md">
+<span class="material-symbols-outlined text-[20px]">explore</span>
+<span>Explora y Descubre</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-2 font-semibold">Encuentra supermercados, fruterías y almacenes cercanos</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Revisa lotes de frutas maduras, verduras listas para consumo, lácteos y abarrotes con fecha próxima a una fracción de su valor de góndola.</p>
+<div class="mt-space-md pt-space-sm border-t-0 flex items-center gap-2 text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-primary text-[16px]">check_circle</span>
+  Filtra por distancia y categoría de despensa
+</div>
+</div>
+<!-- Step 2 -->
+<div class="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm hover:shadow-md transition-shadow relative flex flex-col items-start">
+<div class="w-12 h-12 rounded-xl bg-secondary-fixed text-on-secondary-fixed flex items-center justify-center font-headline-md text-headline-md font-bold mb-space-md">
+  2
+</div>
+<div class="flex items-center gap-space-xs mb-space-xs text-secondary font-label-md text-label-md">
+<span class="material-symbols-outlined text-[20px]">shopping_cart_checkout</span>
+<span>Reserva con Descuento</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-2 font-semibold">Reserva tus lotes de frescos y abarrotes con hasta 70% de descuento</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Asegura canastas de frutas o paquetes de lácteos y abarrotes pagando de forma 100% protegida y directa en la plataforma.</p>
+<div class="mt-space-md pt-space-sm border-t-0 flex items-center gap-2 text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-primary text-[16px]">check_circle</span>
+  Confirmación digital y retiro garantizado
+</div>
+</div>
+<!-- Step 3 -->
+<div class="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm hover:shadow-md transition-shadow relative flex flex-col items-start">
+<div class="w-12 h-12 rounded-xl bg-tertiary-fixed text-on-tertiary-fixed flex items-center justify-center font-headline-md text-headline-md font-bold mb-space-md">
+  3
+</div>
+<div class="flex items-center gap-space-xs mb-space-xs text-tertiary font-label-md text-label-md">
+<span class="material-symbols-outlined text-[20px]">storefront</span>
+<span>Pasa y Rescata</span>
+</div>
+<h3 class="font-headline-sm text-headline-sm text-on-surface mb-2 font-semibold">Retira en el local y evita que alimentos perfectos terminen en la basura</h3>
+<p class="font-body-md text-body-md text-on-surface-variant">Muestra tu comprobante digital en caja, recoge tus alimentos de calidad comprobada y contribuye activamente al cuidado ambiental.</p>
+<div class="mt-space-md pt-space-sm border-t-0 flex items-center gap-2 text-on-surface-variant font-label-sm text-label-sm">
+<span class="material-symbols-outlined text-primary text-[16px]">check_circle</span>
+  Ahorro inteligente y sostenible
+</div>
+</div></div>
+</div>
+</section>
+<!-- 7. APP DOWNLOAD & NEWSLETTER HERO BANNER -->
+<section class="w-full py-space-xl bg-surface">
+<div class="max-w-7xl mx-auto px-margin">
+<div class="rounded-xl bg-gradient-to-r from-primary to-primary-container p-space-lg sm:p-space-xl text-on-primary flex flex-col lg:flex-row items-center justify-between gap-space-lg shadow-xl relative overflow-hidden">
+<div class="max-w-xl z-10">
+<span class="px-3 py-1 rounded-full bg-surface-container-lowest/20 font-label-sm text-label-sm uppercase tracking-wider text-primary-fixed">Descarga Gratuita</span>
+<h2 class="font-headline-xl text-headline-xl font-bold mt-space-xs text-on-primary">Lleva el Rescate de Comida en tu Bolsillo</h2>
+<p class="font-body-lg text-body-lg text-on-primary-container mt-2">
+            Activa alertas automáticas para que tus locales favoritos te avisen en tiempo real cuando publiquen bolsas sorpresa antes de que se agoten.
+          </p>
+<div class="flex items-center gap-space-sm mt-space-md flex-wrap">
+<button class="px-5 py-2.5 rounded-lg bg-surface-container-lowest text-on-surface font-label-md text-label-md hover:bg-surface-container-low transition-all shadow-md flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px]">phone_iphone</span>
+<span>Descargar en App Store</span>
+</button>
+<button class="px-5 py-2.5 rounded-lg bg-inverse-surface text-inverse-on-surface font-label-md text-label-md hover:bg-inverse-surface/90 transition-all shadow-md flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px]">android</span>
+<span>Disponible en Google Play</span>
+</button>
+</div>
+</div>
+<div class="z-10 flex flex-col items-center p-space-md rounded-xl bg-surface-container-lowest/10 backdrop-blur-md">
+<div class="w-32 h-32 rounded-lg bg-surface-container-lowest p-2 flex items-center justify-center shadow-inner">
+<!-- Simulated QR code via SVG -->
+<svg class="w-full h-full text-on-surface" fill="currentColor" viewbox="0 0 100 100">
+<rect height="25" width="25" x="10" y="10"></rect>
+<rect fill="white" height="15" width="15" x="15" y="15"></rect>
+<rect height="9" width="9" x="18" y="18"></rect>
+<rect height="25" width="25" x="65" y="10"></rect>
+<rect fill="white" height="15" width="15" x="70" y="15"></rect>
+<rect height="9" width="9" x="73" y="18"></rect>
+<rect height="25" width="25" x="10" y="65"></rect>
+<rect fill="white" height="15" width="15" x="15" y="70"></rect>
+<rect height="9" width="9" x="18" y="73"></rect>
+<rect height="18" width="6" x="42" y="12"></rect>
+<rect height="6" width="8" x="52" y="24"></rect>
+<rect height="16" width="16" x="42" y="42"></rect>
+<rect height="8" width="20" x="65" y="45"></rect>
+<rect height="22" width="12" x="42" y="65"></rect>
+<rect height="8" width="25" x="60" y="70"></rect>
+<rect height="6" width="12" x="75" y="82"></rect>
+</svg>
+</div>
+<span class="font-label-sm text-label-sm text-primary-fixed mt-2">Escanea para descargar</span>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- INTERACTIVE SCRIPTS -->
+<script>
+  // Global cart counter state
+  let cartCount = 0;
+
+  function scrollToOffers() {
+    const el = document.getElementById('ofertas-section');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' });
+    }
+  }
+
+  // Handle Category Filter Buttons
+  function filterCategory(category, buttonElement) {
+    document.querySelectorAll('.category-pill').forEach(btn => {
+      btn.classList.remove('bg-primary', 'text-on-primary', 'active');
+      btn.classList.add('bg-surface-container-low', 'text-on-surface-variant');
+    });
+
+    buttonElement.classList.remove('bg-surface-container-low', 'text-on-surface-variant');
+    buttonElement.classList.add('bg-primary', 'text-on-primary', 'active');
+
+    const cards = document.querySelectorAll('.product-card');
+    cards.forEach(card => {
+      const cardCat = card.getAttribute('data-category');
+      if (category === 'all' || cardCat === category) {
+        card.style.display = 'flex';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+  }
+
+  // Real-time Card Search
+  function searchCards(query) {
+    const term = query.toLowerCase().trim();
+    const cards = document.querySelectorAll('.product-card');
+    cards.forEach(card => {
+      const title = card.querySelector('.card-title').innerText.toLowerCase();
+      const vendor = card.querySelector('div > span').innerText.toLowerCase();
+      if (title.includes(term) || vendor.includes(term)) {
+        card.style.display = 'flex';
+      } else {
+        card.style.display = 'none';
+      }
+    });
+  }
+
+  // Sort Cards
+  function sortCards(criteria) {
+    const grid = document.getElementById('cards-grid');
+    const cards = Array.from(grid.querySelectorAll('.product-card'));
+
+    cards.sort((a, b) => {
+      if (criteria === 'price-low') {
+        return parseInt(a.getAttribute('data-price')) - parseInt(b.getAttribute('data-price'));
+      } else if (criteria === 'discount') {
+        return parseInt(b.getAttribute('data-discount')) - parseInt(a.getAttribute('data-discount'));
+      } else if (criteria === 'distance') {
+        return parseFloat(a.getAttribute('data-distance')) - parseFloat(b.getAttribute('data-distance'));
+      }
+      return 0;
+    });
+
+    cards.forEach(c => grid.appendChild(c));
+  }
+
+  // Reservation Flow & Modal Handling
+  let activeReservation = null;
+
+  function handleReservation(vendor, title, price, time, buttonEl) {
+    activeReservation = { vendor, title, price, time, buttonEl };
+    
+    document.getElementById('modal-vendor').innerText = vendor;
+    document.getElementById('modal-title').innerText = title;
+    document.getElementById('modal-price').innerText = price;
+    document.getElementById('modal-time').innerText = `Hoy ${time}`;
+
+    const modal = document.getElementById('booking-modal');
+    const card = document.getElementById('modal-card');
+    modal.classList.remove('opacity-0', 'pointer-events-none');
+    card.classList.remove('scale-95');
+    card.classList.add('scale-100');
+  }
+
+  function closeModal() {
+    const modal = document.getElementById('booking-modal');
+    const card = document.getElementById('modal-card');
+    modal.classList.add('opacity-0', 'pointer-events-none');
+    card.classList.remove('scale-100');
+    card.classList.add('scale-95');
+  }
+
+  function confirmModalReservation() {
+    closeModal();
+    if (!activeReservation) return;
+
+    cartCount += 1;
+    // Update top header cart counter in app shell if present
+    const headerCartBadge = document.querySelector('a[data-path="mis-reservas"] span:last-child');
+    if (headerCartBadge) {
+      headerCartBadge.innerText = cartCount;
+      headerCartBadge.classList.add('animate-ping');
+      setTimeout(() => headerCartBadge.classList.remove('animate-ping'), 500);
+    }
+
+    // Change button state
+    const btn = activeReservation.buttonEl;
+    if (btn) {
+      btn.innerHTML = `<span class="material-symbols-outlined text-[18px]">done</span><span>Reservado ✓</span>`;
+      btn.classList.remove('bg-primary', 'hover:bg-primary-container');
+      btn.classList.add('bg-surface-container-high', 'text-primary', 'font-bold', 'cursor-default');
+      btn.onclick = null;
+    }
+
+    showToast(`🎉 ¡Paquete de ${activeReservation.vendor} reservado con éxito! Tienes 15 minutos para confirmar el retiro.`);
+  }
+
+  // Toast Notification System
+  function showToast(message) {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = 'pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl bg-inverse-surface text-inverse-on-surface shadow-2xl transition-all duration-300 transform translate-y-4 opacity-0 max-w-sm border-l-4 border-primary';
+    toast.innerHTML = `
+      <span class="material-symbols-outlined text-primary text-[22px]">check_circle</span>
+      <p class="font-body-sm text-body-sm flex-1 leading-snug">${message}</p>
+      <button onclick="this.parentElement.remove()" class="text-on-surface-variant hover:text-inverse-on-surface">
+        <span class="material-symbols-outlined text-[18px]">close</span>
+      </button>
+    `;
+
+    container.appendChild(toast);
+
+    requestAnimationFrame(() => {
+      toast.classList.remove('translate-y-4', 'opacity-0');
+    });
+
+    setTimeout(() => {
+      toast.classList.add('opacity-0', 'translate-y-2');
+      setTimeout(() => toast.remove(), 300);
+    }, 4500);
+  }
+
+  // B2B Form Handler
+  function handleB2BSubmit(e) {
+    e.preventDefault();
+    const submitBtn = document.getElementById('b2b-submit-btn');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = `<span class="material-symbols-outlined animate-spin text-[18px]">sync</span><span>Enviando...</span>`;
+
+    setTimeout(() => {
+      document.getElementById('b2b-success').classList.remove('hidden');
+      document.getElementById('b2b-success').classList.add('flex');
+      showToast("🚀 ¡Solicitud B2B enviada! Te contactaremos a la brevedad.");
+    }, 800);
+  }
+
+  function resetB2BForm() {
+    document.getElementById('b2b-form').reset();
+    document.getElementById('b2b-success').classList.add('hidden');
+    document.getElementById('b2b-success').classList.remove('flex');
+    const submitBtn = document.getElementById('b2b-submit-btn');
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = `<span>Unirse como Aliado FoodSave</span><span class="material-symbols-outlined text-[18px]">send</span>`;
+  }
+</script></main><footer class="w-full bg-surface-container-low text-on-surface pt-space-xl pb-space-lg"><div class="max-w-7xl mx-auto px-margin"><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-space-xl pb-space-xl"><div class="lg:col-span-2 flex flex-col gap-space-md"><div class="flex items-center gap-space-sm"><img alt="Logo FoodSave" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1XP3C8i-pPRovCVI4NaiXz5O2KzkNHnOc7wZviSseH1XccAXeHc46NYTsURcDSwwKzdFyaYGbeeV12OvrygCZl7u7U-IS7VUSzUMjqrXi2xCZb2gTgJDWXc_d1M4slkFji3uBT6NSX-wigNjpr6IuN7ylUZS5XAtfZYl6W8OVsOPf_rsFQG2HGNalRQB9BOch3LXHAUhN06pkiZPJNFC8Z04FZz6YOfVWwK3qng2qk9qkhDdsCz0OafOg"/><span class="font-headline-sm text-headline-sm text-primary tracking-tight">FoodSave</span></div><p class="font-body-md text-body-md text-on-surface-variant max-w-sm">Transformando el desperdicio de alimentos en oportunidades deliciosas y sostenibles. Únete a miles de personas salvando comida a diario.</p><div class="flex items-center gap-space-sm pt-space-xs"><a aria-label="Instagram" class="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:bg-primary-container hover:text-on-primary-container transition-colors" href="#"><span class="material-symbols-outlined text-[18px]">camera_alt</span></a><a aria-label="LinkedIn" class="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:bg-primary-container hover:text-on-primary-container transition-colors" href="#"><span class="material-symbols-outlined text-[18px]">work</span></a><a aria-label="X" class="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:bg-primary-container hover:text-on-primary-container transition-colors" href="#"><span class="material-symbols-outlined text-[18px]">flutter</span></a><a aria-label="TikTok" class="w-9 h-9 rounded-full bg-surface-container flex items-center justify-center text-on-surface-variant hover:bg-primary-container hover:text-on-primary-container transition-colors" href="#"><span class="material-symbols-outlined text-[18px]">play_circle</span></a></div></div><div class="flex flex-col gap-space-sm"><h4 class="font-label-lg text-label-lg text-on-surface">Explorar</h4><ul class="flex flex-col gap-space-xs font-body-md text-body-md text-on-surface-variant"><li><a class="hover:text-primary transition-colors" data-path="explorar-comida" href="#">Panaderías</a></li><li><a class="hover:text-primary transition-colors" data-path="explorar-comida" href="#">Frutas y Verduras</a></li><li><a class="hover:text-primary transition-colors" data-path="explorar-comida" href="#">Restaurantes</a></li><li><a class="hover:text-primary transition-colors" data-path="explorar-comida" href="#">Vegano</a></li></ul></div><div class="flex flex-col gap-space-sm"><h4 class="font-label-lg text-label-lg text-on-surface">Aliados</h4><ul class="flex flex-col gap-space-xs font-body-md text-body-md text-on-surface-variant"><li><a class="hover:text-primary transition-colors" data-path="registro-comercio" href="#">Registrar Local</a></li><li><a class="hover:text-primary transition-colors" data-path="portal-b2b" href="#">Portal B2B</a></li><li><a class="hover:text-primary transition-colors" data-path="historias-exito" href="#">Historias de Éxito</a></li><li><a class="hover:text-primary transition-colors" data-path="calculadora-desperdicio" href="#">Calculadora de Ahorro</a></li></ul></div><div class="flex flex-col gap-space-sm"><h4 class="font-label-lg text-label-lg text-on-surface">Comunidad</h4><ul class="flex flex-col gap-space-xs font-body-md text-body-md text-on-surface-variant"><li><a class="hover:text-primary transition-colors" data-path="impacto-ambiental" href="#">Impacto Ecológico</a></li><li><a class="hover:text-primary transition-colors" data-path="voluntariado" href="#">Voluntariado</a></li><li><a class="hover:text-primary transition-colors" data-path="blog-verde" href="#">Blog Verde</a></li><li><a class="hover:text-primary transition-colors" data-path="recetas-residuo-cero" href="#">Cocina Zero Waste</a></li></ul></div><div class="flex flex-col gap-space-sm"><h4 class="font-label-lg text-label-lg text-on-surface">Suscríbete</h4><p class="font-body-sm text-body-sm text-on-surface-variant">Recibe ofertas flash y un 20% extra en tu primer rescate culinario.</p><form class="flex flex-col gap-space-xs mt-space-xs"><div class="relative flex items-center"><input class="w-full h-11 px-space-md rounded-lg bg-surface-container-lowest text-on-surface placeholder:text-on-surface-variant font-body-sm text-body-sm focus:outline-none focus:ring-2 focus:ring-primary" placeholder="tu@email.com" type="email"/><button class="absolute right-1 px-space-sm py-1.5 rounded-lg bg-primary text-on-primary font-label-sm text-label-sm hover:bg-primary-container transition-colors" type="button">Unirse</button></div><span class="font-body-sm text-[11px] text-on-surface-variant">Sin spam. Cancela cuando quieras.</span></form></div></div><div class="pt-space-lg flex flex-col sm:flex-row items-center justify-between gap-space-md font-body-sm text-body-sm text-on-surface-variant"><p>© 2025 FoodSave Inc. Todos los derechos reservados.</p><div class="flex items-center gap-space-md flex-wrap"><a class="hover:text-on-surface transition-colors" data-path="terminos-servicio" href="#">Términos</a><a class="hover:text-on-surface transition-colors" data-path="politica-privacidad" href="#">Privacidad</a><a class="hover:text-on-surface transition-colors" data-path="preguntas-frecuentes" href="#">Preguntas Frecuentes</a><a class="hover:text-on-surface transition-colors" data-path="contacto" href="#">Contacto</a></div></div></div></footer></body></html>

@@ -25,10 +25,20 @@ C. Definición de Contratos de Comunicación
 OpenAPI 3.0 (anteriormente Swagger): Se adopta como el estándar oficial para especificar y documentar los contratos de las APIs RESTful del proyecto FoodSave.
 Estrategia Design-First / Contract-First: Los contratos OpenAPI (.yaml / .json) se diseñan antes de implementar los endpoints para permitir que los equipos de Frontend y Backend trabajen de forma paralela usando mock servers.
 
-4. Alternativas Descartadas
+4. Alternativas Descartadas.
+
 Tecnología	Razón de Descarte para FoodSave
 SOAP (WSDL)	Excesiva complejidad y sobrecarga de datos en XML. Poco apto para consumo ágil desde clientes web y móviles modernos.
 GraphQL (SDL)	Aunque ofrece flexibilidad de consultas, añade complejidad innecesaria en la gestión de caché y control de permisos en etapas tempranas de FoodSave.
 gRPC (.proto)	Altamente eficiente para comunicación entre microservicios (Backend-to-Backend), pero introduce complejidad de integración directa con clientes web/navegadores sin un proxy adicional. Se reserva como alternativa futura para comunicación interna.
 
+5. Buenas Prácticas Discutidas e Incluidas.
 
+Evolución y Versionado del Contrato:
+Versionado explícito en URI (ej. /api/v1/donations) garantizando compatibilidad hacia atrás cuando se introduzcan breaking changes.
+Definición Clara de Códigos de Estado HTTP:
+Uso adecuado de semántica REST (200 OK, 201 Created, 400 Bad Request, 401 Unauthorized, 404 Not Found, 500 Internal Error).
+Estandarización de Errores:
+Estructura JSON unificada para respuestas de error en todos los servicios (ej. code, message, details, timestamp).
+Pruebas de Contrato (Consumer-Driven Contract Testing):
+Validación del contrato OpenAPI mediante CI/CD para evitar que cambios en el backend rompan la integración con el frontend.

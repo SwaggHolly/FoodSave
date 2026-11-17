@@ -1,0 +1,18 @@
+<div class="tech-status-container">
+  <h3>Estado de Arquitectura e Integraciones (ADRs)</h3>
+  <p class="subtitle">Monitoreo en tiempo real de los contratos y protocolos de FoodSave.</p>
+  
+  <div class="protocol-grid">
+    <div class="protocol-card" *ngFor="let proto of protocols">
+      <div class="protocol-header">
+        <span class="badge" [class.online]="proto.status === 'online'">{{ proto.type }}</span>
+        <span class="latency">{{ proto.latencyMs }} ms</span>
+      </div>
+      <h4>{{ proto.name }}</h4>
+      <div class="status-indicator">
+        <span class="dot" [class.online]="proto.status === 'online'"></span>
+        <span>{{ proto.status | titlecase }}</span>
+      </div>
+    </div>
+  </div>
+</div>

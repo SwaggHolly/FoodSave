@@ -77,6 +77,14 @@ const demoProducts: Product[] = [
 describe('AppComponent', () => {
   let submittedOrders: CreateOrderRequest[];
 
+  async function createLoadedApp() {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    return fixture;
+  }
+
   beforeEach(async () => {
     localStorage.removeItem('foodsave-cart');
     submittedOrders = [];
@@ -102,18 +110,16 @@ describe('AppComponent', () => {
     }).compileComponents();
   });
 
-  it('renders the food rescue storefront', () => {
-    const fixture = TestBed.createComponent(AppComponent);
-    fixture.detectChanges();
+  it('renders the food rescue storefront', async () => {
+    const fixture = await createLoadedApp();
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('h1')?.textContent).toContain('Rescata comida.');
     expect(compiled.querySelectorAll('.product-card').length).toBe(demoProducts.length);
   });
 
-  it('adds products to the cart and updates the total', () => {
-    const fixture = TestBed.createComponent(AppComponent);
+  it('adds products to the cart and updates the total', async () => {
+    const fixture = await createLoadedApp();
     const app = fixture.componentInstance;
-    fixture.detectChanges();
 
     app.addToCart(app.products[0]);
     app.addToCart(app.products[0]);
@@ -122,10 +128,9 @@ describe('AppComponent', () => {
     expect(app.cartTotal).toBe(demoProducts[0].discountPrice * 2);
   });
 
-  it('persists cart contents in local storage', () => {
-    const fixture = TestBed.createComponent(AppComponent);
+  it('persists cart contents in local storage', async () => {
+    const fixture = await createLoadedApp();
     const app = fixture.componentInstance;
-    fixture.detectChanges();
     app.addToCart(app.products[0]);
 
     expect(JSON.parse(localStorage.getItem('foodsave-cart') ?? '[]')).toEqual([
@@ -133,10 +138,9 @@ describe('AppComponent', () => {
     ]);
   });
 
-  it('filters the catalog by category and search text', () => {
-    const fixture = TestBed.createComponent(AppComponent);
+  it('filters the catalog by category and search text', async () => {
+    const fixture = await createLoadedApp();
     const app = fixture.componentInstance;
-    fixture.detectChanges();
 
     app.selectedCategory = 'frutas';
     app.searchTerm = 'banano';
@@ -145,10 +149,9 @@ describe('AppComponent', () => {
     expect(app.filteredProducts[0].title).toContain('Banano');
   });
 
-  it('removes an item when its cart quantity reaches zero', () => {
-    const fixture = TestBed.createComponent(AppComponent);
+  it('removes an item when its cart quantity reaches zero', async () => {
+    const fixture = await createLoadedApp();
     const app = fixture.componentInstance;
-    fixture.detectChanges();
     app.addToCart(app.products[0]);
 
     app.changeQuantity(app.products[0].id, -1);
@@ -156,10 +159,9 @@ describe('AppComponent', () => {
     expect(app.cartItems).toHaveLength(0);
   });
 
-  it('submits a reservation and empties the cart after success', () => {
-    const fixture = TestBed.createComponent(AppComponent);
+  it('submits a reservation and empties the cart after success', async () => {
+    const fixture = await createLoadedApp();
     const app = fixture.componentInstance;
-    fixture.detectChanges();
     app.addToCart(demoProducts[0]);
     app.buyerName = 'Ana Pérez';
     app.buyerPhone = '+573001234567';

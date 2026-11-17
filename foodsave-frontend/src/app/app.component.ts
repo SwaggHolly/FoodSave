@@ -1,8 +1,15 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { CommonModule, isPlatformBrowser, registerLocaleData } from '@angular/common';
-import { Component, Inject, PLATFORM_ID } from '@angular/core';
+import {
+  ApplicationRef,
+  ChangeDetectorRef,
+  Component,
+  Inject,
+  PLATFORM_ID
+} from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import localeEsCo from '@angular/common/locales/es-CO';
+import { filter, take } from 'rxjs';
 import { CreateOrderRequest, OrderReceipt } from './models/order.model';
 import { Product } from './models/product.model';
 import { FoodsaveService } from './services/foodsave.service';
@@ -45,10 +52,18 @@ export class AppComponent {
 
   constructor(
     private readonly foodSave: FoodsaveService,
+    private readonly applicationRef: ApplicationRef,
+    private readonly changeDetector: ChangeDetectorRef,
     @Inject(PLATFORM_ID) private readonly platformId: object
   ) {
-    if (!isPlatformBrowser(this.platformId)) return;
-    this.loadProducts();
+    if (isPlatformBrowser(this.platformId)) {
+      this.applicationRef.isStable
+        .pipe(
+          filter((isStable) => isStable),
+          take(1)
+        )
+        .subscribe(() => this.loadProducts());
+    }
   }
 
   reloadProducts(): void {
@@ -63,10 +78,12 @@ export class AppComponent {
         this.products = products;
         this.cartItems = this.loadCart();
         this.isLoadingProducts = false;
+        this.changeDetector.markForCheck();
       },
       error: (error: unknown) => {
         this.catalogError = this.apiErrorMessage(error);
         this.isLoadingProducts = false;
+        this.changeDetector.markForCheck();
       }
     });
   }

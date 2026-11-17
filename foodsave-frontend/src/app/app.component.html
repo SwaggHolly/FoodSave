@@ -1,7 +1,179 @@
-<main class="main-container">
-  <h1>Bienvenido a FoodSave</h1>
-  <p>Plataforma para mitigar el desperdicio de alimentos.</p>
+<header class="site-header">
+  <a class="brand" href="#inicio" aria-label="FoodSave, inicio">
+    <span class="brand-mark" aria-hidden="true">F</span>
+    <span>food<span>save</span></span>
+  </a>
+  <nav class="main-nav" aria-label="Navegación principal">
+    <a href="#productos">Explorar productos</a>
+    <a href="#como-funciona">Cómo funciona</a>
+  </nav>
+  <button class="cart-button" type="button" (click)="cartOpen = true" aria-label="Abrir carrito">
+    <span aria-hidden="true">🛒</span>
+    <span>Mi carrito</span>
+    <span class="cart-count">{{ totalItems }}</span>
+  </button>
+</header>
 
-  <!-- Aquí se renderiza nuestro widget de arquitectura con REST, GraphQL, gRPC y SOAP -->
-  <app-tech-status-widget></app-tech-status-widget>
+<main>
+  <section class="hero" id="inicio">
+    <div class="hero-copy">
+      <span class="eyebrow"><span class="live-dot"></span> BUENO PARA TI, MEJOR PARA EL PLANETA</span>
+      <h1>Rescata comida.<br /><span>Alimenta el cambio.</span></h1>
+      <p>
+        Tus favoritos, de tiendas locales y a un precio increíble. Dales una segunda oportunidad
+        antes de que se desperdicien.
+      </p>
+      <a class="primary-button hero-button" href="#productos">
+        Explorar ofertas <span aria-hidden="true">→</span>
+      </a>
+      <div class="hero-proof">
+        <span class="proof-icon" aria-hidden="true">🌱</span>
+        <span><strong>Pequeñas compras,</strong> un gran impacto en el planeta.</span>
+      </div>
+    </div>
+    <div class="hero-art" role="img" aria-label="Canasta con alimentos frescos">
+      <div class="hero-image"></div>
+      <div class="floating-note"><span>♻️</span><span><strong>Rescata hoy</strong><small>y ahorra hasta 60%</small></span></div>
+      <span class="hero-sparkle sparkle-one" aria-hidden="true">✳</span>
+      <span class="hero-sparkle sparkle-two" aria-hidden="true">✦</span>
+    </div>
+  </section>
+
+  <section class="impact-strip" aria-label="Impacto de FoodSave">
+    <div><span class="impact-icon">🍎</span><span><strong>Alimentos frescos</strong><small>De tiendas cerca de ti</small></span></div>
+    <div><span class="impact-icon">💚</span><span><strong>Precios que encantan</strong><small>Hasta 60% de descuento</small></span></div>
+    <div><span class="impact-icon">🌎</span><span><strong>Menos desperdicio</strong><small>Más futuro para todos</small></span></div>
+  </section>
+
+  <section class="catalog-section" id="productos">
+    <div class="section-heading">
+      <div>
+        <span class="eyebrow">TU PRÓXIMO GRAN HALLAZGO</span>
+        <h2>Rescata algo delicioso</h2>
+        <p>Productos frescos, precios especiales y una buena causa.</p>
+      </div>
+      <label class="search-box">
+        <span aria-hidden="true">⌕</span>
+        <input
+          type="search"
+          [(ngModel)]="searchTerm"
+          placeholder="Busca un producto o tienda"
+          aria-label="Buscar productos o tiendas"
+        />
+      </label>
+    </div>
+
+    <div class="category-list" aria-label="Filtrar por categoría">
+      <button type="button" [class.active]="selectedCategory === 'todos'" (click)="selectedCategory = 'todos'">Todo</button>
+      <button type="button" [class.active]="selectedCategory === 'frutas'" (click)="selectedCategory = 'frutas'">🍓 Frutas y verduras</button>
+      <button type="button" [class.active]="selectedCategory === 'panaderia'" (click)="selectedCategory = 'panaderia'">🥐 Panadería</button>
+      <button type="button" [class.active]="selectedCategory === 'lacteos'" (click)="selectedCategory = 'lacteos'">🥛 Lácteos</button>
+      <button type="button" [class.active]="selectedCategory === 'sorpresa'" (click)="selectedCategory = 'sorpresa'">🎁 Sorpresas</button>
+    </div>
+
+    @if (filteredProducts.length > 0) {
+      <div class="product-grid">
+        @for (product of filteredProducts; track product.id) {
+          <article class="product-card">
+            <div class="product-image-wrap">
+              <img
+                [src]="product.imageUrl"
+                [alt]="product.title"
+                (error)="onImageError($event)"
+              />
+              <span class="discount-badge">
+                -{{ 100 - (product.discountPrice / product.originalPrice * 100) | number:'1.0-0' }}%
+              </span>
+              <span class="expiry-badge">⏱ {{ expirationLabel(product.expirationDate) }}</span>
+            </div>
+            <div class="product-info">
+              <span class="store-name"><span aria-hidden="true">📍</span> {{ product.storeName }}</span>
+              <h3>{{ product.title }}</h3>
+              <div class="price-row">
+                <strong>{{ product.discountPrice | currency:'COP':'symbol-narrow':'1.0-0':'es-CO' }}</strong>
+                <del>{{ product.originalPrice | currency:'COP':'symbol-narrow':'1.0-0':'es-CO' }}</del>
+              </div>
+              <div class="stock-row">
+                <span>{{ product.stock }} disponibles</span>
+                <button type="button" (click)="addToCart(product)" [disabled]="product.stock < 1">
+                  Agregar <span aria-hidden="true">＋</span>
+                </button>
+              </div>
+            </div>
+          </article>
+        }
+      </div>
+    } @else {
+      <div class="empty-results">
+        <span aria-hidden="true">🥑</span>
+        <h3>No encontramos productos</h3>
+        <p>Prueba con otra búsqueda o categoría.</p>
+        <button type="button" (click)="searchTerm = ''; selectedCategory = 'todos'">Ver todo el catálogo</button>
+      </div>
+    }
+  </section>
+
+  <section class="how-section" id="como-funciona">
+    <span class="eyebrow">ASÍ DE FÁCIL</span>
+    <h2>Un pequeño gesto, un gran cambio</h2>
+    <div class="steps-grid">
+      <article><span class="step-number">01</span><span class="step-icon">🔎</span><h3>Encuentra</h3><p>Descubre productos deliciosos cerca de ti.</p></article>
+      <article><span class="step-number">02</span><span class="step-icon">🛍️</span><h3>Rescata</h3><p>Agrégalos a tu carrito a un precio especial.</p></article>
+      <article><span class="step-number">03</span><span class="step-icon">💚</span><h3>Disfruta</h3><p>Recoge tu pedido y celebra una compra consciente.</p></article>
+    </div>
+  </section>
 </main>
+
+<footer class="site-footer" id="contacto">
+  <a class="brand footer-brand" href="#inicio"><span class="brand-mark" aria-hidden="true">F</span><span>food<span>save</span></span></a>
+  <p>Rescatando alimentos, construyendo un futuro mejor. 🌱</p>
+  <a href="mailto:hola@foodsave.co">¿Tienes una tienda? <strong>Únete a FoodSave</strong></a>
+</footer>
+
+@if (cartOpen) {
+  <div class="drawer-backdrop" (click)="cartOpen = false" (keydown.escape)="cartOpen = false">
+    <aside class="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="cart-title" (click)="$event.stopPropagation()">
+      <div class="drawer-header">
+        <div><span class="eyebrow">TU COMPRA CON PROPÓSITO</span><h2 id="cart-title">Mi carrito <span>({{ totalItems }})</span></h2></div>
+        <button type="button" class="close-button" aria-label="Cerrar carrito" (click)="cartOpen = false">×</button>
+      </div>
+      @if (cartItems.length > 0) {
+        <div class="cart-items">
+          @for (item of cartItems; track item.product.id) {
+            <article class="cart-item">
+              <img [src]="item.product.imageUrl" [alt]="item.product.title" (error)="onImageError($event)" />
+              <div class="cart-item-info">
+                <h3>{{ item.product.title }}</h3>
+                <span>{{ item.product.discountPrice | currency:'COP':'symbol-narrow':'1.0-0':'es-CO' }} c/u</span>
+                <div class="quantity-control">
+                  <button type="button" [attr.aria-label]="'Quitar una unidad de ' + item.product.title" (click)="changeQuantity(item.product.id, -1)">−</button>
+                  <span>{{ item.quantity }}</span>
+                  <button type="button" [attr.aria-label]="'Agregar una unidad de ' + item.product.title" [disabled]="item.quantity >= item.product.stock" (click)="changeQuantity(item.product.id, 1)">+</button>
+                </div>
+              </div>
+              <div class="cart-item-end">
+                <strong>{{ item.product.discountPrice * item.quantity | currency:'COP':'symbol-narrow':'1.0-0':'es-CO' }}</strong>
+                <button type="button" class="remove-button" (click)="removeFromCart(item.product.id)">Quitar</button>
+              </div>
+            </article>
+          }
+        </div>
+        <div class="cart-summary">
+          <div><span>Subtotal</span><strong>{{ cartTotal | currency:'COP':'symbol-narrow':'1.0-0':'es-CO' }}</strong></div>
+          <small>El pago y la entrega se coordinan directamente con la tienda.</small>
+          <button type="button" class="primary-button checkout-button" (click)="finishOrder()">Finalizar pedido <span aria-hidden="true">→</span></button>
+        </div>
+      } @else {
+        <div class="empty-cart">
+          <span aria-hidden="true">🧺</span><h3>Tu carrito está esperando</h3>
+          <p>Agrega productos y empieza a rescatar alimentos.</p>
+          <button type="button" class="primary-button" (click)="cartOpen = false">Explorar productos</button>
+        </div>
+      }
+    </aside>
+  </div>
+}
+
+@if (notice) {
+  <div class="toast" role="status" aria-live="polite">{{ notice }}</div>
+}

@@ -1,0 +1,26 @@
+{
+  "name": "foodsave-api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "tsx --test handler.test.ts src/domain/services/reserve-order.test.ts",
+    "seed:local": "tsx scripts/seed.ts --local",
+    "seed:aws": "tsx scripts/seed.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.883.0",
+    "@aws-sdk/lib-dynamodb": "^3.883.0",
+    "zod": "^4.1.12"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.152",
+    "@types/node": "^22.15.30",
+    "tsx": "^4.20.6",
+    "typescript": "~5.9.3"
+  }
+}

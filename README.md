@@ -18,3 +18,10 @@ y posteriormente se crea un Pull Request hacia `main`.
 
 Esta estrategia facilita la revisión del código y permite integrar los cambios
 de manera controlada antes de incorporarlos a la rama principal.
+
+## Aplicaciones
+
+- `foodsave-frontend/`: interfaz web en Angular.
+- `lambda/`: API REST serverless con AWS Lambda, API Gateway HTTP API y DynamoDB.
+
+La API valida las reservas y descuenta existencias en una transacción de DynamoDB. La decisión está documentada en [ADR004](./ADR004_Arquitectura_Serverless_FoodSave.md). Consulta [lambda/README.md](./lambda/README.md) para ejecutar el MVP localmente y desplegarlo.

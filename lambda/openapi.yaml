@@ -1,0 +1,186 @@
+openapi: 3.0.3
+info:
+  title: FoodSave API
+  version: 1.0.0
+  description: Catálogo y reservas de alimentos disponibles para rescate.
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      responses:
+        '200':
+          description: API disponible.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, service]
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
+                  service:
+                    type: string
+                    example: foodsave-api
+  /products:
+    get:
+      operationId: listProducts
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ProductCategory'
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 100
+      responses:
+        '200':
+          description: Productos disponibles.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [products]
+                properties:
+                  products:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Product'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /orders:
+    post:
+      operationId: createOrder
+      description: Reserva productos y descuenta existencias de forma atómica; no procesa pagos.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: Reserva creada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderReceipt'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Uno o más productos ya no existen.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: El inventario cambió o el producto venció.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+components:
+  responses:
+    BadRequest:
+      description: Solicitud inválida.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    ProductCategory:
+      type: string
+      enum: [frutas, panaderia, lacteos, sorpresa]
+    Product:
+      type: object
+      required:
+        - id
+        - title
+        - storeName
+        - category
+        - originalPrice
+        - discountPrice
+        - expirationDate
+        - stock
+        - imageUrl
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        storeName:
+          type: string
+        category:
+          $ref: '#/components/schemas/ProductCategory'
+        originalPrice:
+          type: integer
+          minimum: 1
+          description: Precio original en pesos colombianos.
+        discountPrice:
+          type: integer
+          minimum: 1
+          description: Precio de rescate en pesos colombianos.
+        expirationDate:
+          type: string
+          format: date-time
+        stock:
+          type: integer
+          minimum: 0
+        imageUrl:
+          type: string
+          format: uri
+    CreateOrderRequest:
+      type: object
+      additionalProperties: false
+      required: [buyerName, buyerPhone, items]
+      properties:
+        buyerName:
+          type: string
+          minLength: 2
+          maxLength: 80
+        buyerPhone:
+          type: string
+          minLength: 7
+          maxLength: 20
+          pattern: '^[+\d\s()-]+$'
+        items:
+          type: array
+          minItems: 1
+          maxItems: 20
+          items:
+            type: object
+            additionalProperties: false
+            required: [productId, quantity]
+            properties:
+              productId:
+                type: string
+                minLength: 1
+              quantity:
+                type: integer
+                minimum: 1
+                maximum: 20
+    OrderReceipt:
+      type: object
+      required: [orderId, status, total, createdAt]
+      properties:
+        orderId:
+          type: string
+        status:
+          type: string
+          enum: [reserved]
+        total:
+          type: integer
+          minimum: 0
+        createdAt:
+          type: string
+          format: date-time
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string

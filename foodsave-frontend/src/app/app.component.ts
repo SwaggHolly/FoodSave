@@ -1,7 +1,9 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { CommonModule, isPlatformBrowser, registerLocaleData } from '@angular/common';
 import { Component, Inject, PLATFORM_ID } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import localeEsCo from '@angular/common/locales/es-CO';
+import { CreateOrderRequest, OrderReceipt } from './models/order.model';
 import { Product } from './models/product.model';
 import { FoodsaveService } from './services/foodsave.service';
 
@@ -33,6 +35,11 @@ export class AppComponent {
   selectedCategory: CategoryFilter = 'todos';
   cartOpen = false;
   notice = '';
+  isLoadingProducts = true;
+  catalogError = '';
+  buyerName = '';
+  buyerPhone = '';
+  isSubmittingOrder = false;
   private readonly storageKey = 'foodsave-cart';
   private noticeTimeout?: ReturnType<typeof setTimeout>;
 
@@ -40,14 +47,26 @@ export class AppComponent {
     private readonly foodSave: FoodsaveService,
     @Inject(PLATFORM_ID) private readonly platformId: object
   ) {
+    if (!isPlatformBrowser(this.platformId)) return;
+    this.loadProducts();
+  }
+
+  reloadProducts(): void {
+    this.loadProducts();
+  }
+
+  private loadProducts(): void {
+    this.isLoadingProducts = true;
+    this.catalogError = '';
     this.foodSave.getProducts().subscribe({
       next: (products) => {
         this.products = products;
         this.cartItems = this.loadCart();
+        this.isLoadingProducts = false;
       },
       error: (error: unknown) => {
-        console.error('No se pudo cargar el catálogo de FoodSave.', error);
-        this.showNotice('No fue posible cargar los productos. Intenta de nuevo.');
+        this.catalogError = this.apiErrorMessage(error);
+        this.isLoadingProducts = false;
       }
     });
   }
@@ -117,15 +136,46 @@ export class AppComponent {
   }
 
   finishOrder(): void {
-    if (this.cartItems.length === 0) return;
+    if (this.cartItems.length === 0 || this.isSubmittingOrder) return;
+    if (!this.buyerName.trim() || !this.buyerPhone.trim()) {
+      this.showNotice('Completa tu nombre y teléfono para reservar el pedido.');
+      return;
+    }
 
-    this.cartItems = [];
-    this.persistCart();
-    this.cartOpen = false;
-    this.showNotice('¡Gracias por rescatar alimentos! Esta demo no procesa pagos ni envía pedidos.');
+    const request: CreateOrderRequest = {
+      buyerName: this.buyerName.trim(),
+      buyerPhone: this.buyerPhone.trim(),
+      items: this.cartItems.map(({ product, quantity }) => ({
+        productId: product.id,
+        quantity
+      }))
+    };
+
+    this.isSubmittingOrder = true;
+    this.foodSave.createOrder(request).subscribe({
+      next: (receipt: OrderReceipt) => {
+        this.cartItems = [];
+        this.persistCart();
+        this.cartOpen = false;
+        this.buyerName = '';
+        this.buyerPhone = '';
+        this.isSubmittingOrder = false;
+        this.loadProducts();
+        this.showNotice(
+          `Reserva ${receipt.orderId} creada. La tienda coordinará contigo la recogida; esta versión no procesa pagos.`
+        );
+      },
+      error: (error: unknown) => {
+        this.isSubmittingOrder = false;
+        if (error instanceof HttpErrorResponse && error.status === 409) {
+          this.loadProducts();
+        }
+        this.showNotice(this.apiErrorMessage(error));
+      }
+    });
   }
 
-  expirationLabel(expirationDate: Date): string {
+  expirationLabel(expirationDate: string | Date): string {
     const hoursLeft = Math.max(
       0,
       Math.ceil((new Date(expirationDate).getTime() - Date.now()) / 3_600_000)
@@ -154,7 +204,7 @@ export class AppComponent {
       return parsed.flatMap((entry: unknown) => {
         if (!this.isSavedCartItem(entry)) return [];
         const product = this.products.find((item) => item.id === entry.productId);
-        if (!product || entry.quantity < 1) return [];
+        if (!product || product.stock < 1 || entry.quantity < 1) return [];
         return [{ product, quantity: Math.min(entry.quantity, product.stock) }];
       });
     } catch (error: unknown) {
@@ -194,5 +244,25 @@ export class AppComponent {
       if (this.noticeTimeout) clearTimeout(this.noticeTimeout);
       this.noticeTimeout = setTimeout(() => (this.notice = ''), 3500);
     }
+  }
+
+  private apiErrorMessage(error: unknown): string {
+    if (error instanceof HttpErrorResponse) {
+      if (error.status === 0) {
+        return 'No se pudo conectar con FoodSave. Revisa que la API esté ejecutándose.';
+      }
+      const body: unknown = error.error;
+      if (
+        typeof body === 'object' &&
+        body !== null &&
+        'message' in body &&
+        typeof body.message === 'string'
+      ) {
+        return body.message;
+      }
+    }
+
+    console.error('Ocurrió un error inesperado al comunicarse con FoodSave.', error);
+    return 'Ocurrió un error inesperado. Intenta de nuevo.';
   }
 }

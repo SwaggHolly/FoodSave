@@ -1,0 +1,112 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: FoodSave REST API with Lambda and DynamoDB
+
+Parameters:
+  FrontendOrigin:
+    Type: String
+    Default: http://localhost:4200
+    Description: Allowed origin for the Angular application.
+
+Resources:
+  FoodSaveHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: '$default'
+      CorsConfiguration:
+        AllowOrigins:
+          - !Ref FrontendOrigin
+        AllowHeaders:
+          - content-type
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        MaxAge: 300
+
+  FoodSaveApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: dist/handler.handler
+      Runtime: nodejs22.x
+      Timeout: 15
+      MemorySize: 256
+      Environment:
+        Variables:
+          DYNAMODB_ENDPOINT: ''
+          PRODUCTS_TABLE: !Ref FoodSaveProducts
+          ORDERS_TABLE: !Ref FoodSaveOrders
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Query
+                - dynamodb:Scan
+                - dynamodb:TransactWriteItems
+              Resource:
+                - !GetAtt FoodSaveProducts.Arn
+                - !Sub '${FoodSaveProducts.Arn}/index/*'
+                - !GetAtt FoodSaveOrders.Arn
+      Events:
+        Health:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref FoodSaveHttpApi
+            Path: /health
+            Method: GET
+        ListProducts:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref FoodSaveHttpApi
+            Path: /products
+            Method: GET
+        CreateOrder:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref FoodSaveHttpApi
+            Path: /orders
+            Method: POST
+
+  FoodSaveProducts:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: FoodSaveProducts
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: category
+          AttributeType: S
+        - AttributeName: title
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: CategoryTitleIndex
+          KeySchema:
+            - AttributeName: category
+              KeyType: HASH
+            - AttributeName: title
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  FoodSaveOrders:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: FoodSaveOrders
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+
+Outputs:
+  FoodSaveApiUrl:
+    Description: Base URL for the FoodSave API.
+    Value: !Sub 'https://${FoodSaveHttpApi}.execute-api.${AWS::Region}.amazonaws.com'

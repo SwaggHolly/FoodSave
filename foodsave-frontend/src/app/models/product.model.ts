@@ -5,11 +5,9 @@ export interface Product {
   category: 'frutas' | 'panaderia' | 'lacteos' | 'sorpresa';
   originalPrice: number;
   discountPrice: number;
-  expirationDate: Date;
+  expirationDate: string;
   stock: number;
   imageUrl: string;
-  // Protocolos asociados para fines demostrativos académicos
-  protocol: 'REST' | 'GraphQL' | 'gRPC' | 'SOAP';
 }
 
 export interface ProtocolStatus {

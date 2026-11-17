@@ -71,7 +71,15 @@
       <button type="button" [class.active]="selectedCategory === 'sorpresa'" (click)="selectedCategory = 'sorpresa'">🎁 Sorpresas</button>
     </div>
 
-    @if (filteredProducts.length > 0) {
+    @if (isLoadingProducts) {
+      <div class="catalog-state" role="status">Cargando ofertas frescas...</div>
+    } @else if (catalogError) {
+      <div class="catalog-state" role="alert">
+        <h3>No pudimos cargar los productos</h3>
+        <p>{{ catalogError }}</p>
+        <button type="button" (click)="reloadProducts()">Intentar de nuevo</button>
+      </div>
+    } @else if (filteredProducts.length > 0) {
       <div class="product-grid">
         @for (product of filteredProducts; track product.id) {
           <article class="product-card">
@@ -160,8 +168,38 @@
         </div>
         <div class="cart-summary">
           <div><span>Subtotal</span><strong>{{ cartTotal | currency:'COP':'symbol-narrow':'1.0-0':'es-CO' }}</strong></div>
-          <small>El pago y la entrega se coordinan directamente con la tienda.</small>
-          <button type="button" class="primary-button checkout-button" (click)="finishOrder()">Finalizar pedido <span aria-hidden="true">→</span></button>
+          <div class="checkout-contact">
+            <label>
+              Tu nombre
+              <input
+                type="text"
+                [(ngModel)]="buyerName"
+                autocomplete="name"
+                maxlength="80"
+                placeholder="Nombre y apellido"
+              />
+            </label>
+            <label>
+              Teléfono de contacto
+              <input
+                type="tel"
+                [(ngModel)]="buyerPhone"
+                autocomplete="tel"
+                maxlength="20"
+                placeholder="+57 300 123 4567"
+              />
+            </label>
+          </div>
+          <small>El pedido reserva las unidades. La tienda coordinará contigo la recogida; no se procesa ningún pago en línea.</small>
+          <button
+            type="button"
+            class="primary-button checkout-button"
+            (click)="finishOrder()"
+            [disabled]="isSubmittingOrder || !buyerName.trim() || !buyerPhone.trim()"
+          >
+            {{ isSubmittingOrder ? 'Reservando...' : 'Reservar pedido' }}
+            <span aria-hidden="true">→</span>
+          </button>
         </div>
       } @else {
         <div class="empty-cart">

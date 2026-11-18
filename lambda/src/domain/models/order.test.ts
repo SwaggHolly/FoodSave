@@ -1,10 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createOrderRequestSchema } from './order.js';
+import { PRIVACY_POLICY_VERSION } from './privacy.js';
 
 const request = {
   buyerName: 'Ana Pérez',
   buyerPhone: '+573001234567',
+  privacyPolicyVersion: PRIVACY_POLICY_VERSION,
   items: [{ productId: 'apple-1', quantity: 2 }]
 };
 

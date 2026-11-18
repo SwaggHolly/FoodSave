@@ -1,24 +1,48 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: FoodSave REST API with Lambda and DynamoDB
+Description: FoodSave serverless API, payments, merchant onboarding, and notifications
 
 Parameters:
   FrontendOrigin:
     Type: String
     Default: http://localhost:4200
     Description: Allowed origin for the Angular application.
+  PublicApiUrl:
+    Type: String
+    Default: ''
+    Description: Public API base URL used by Mercado Pago webhooks after initial deployment.
+  MercadoPagoAccessToken:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Mercado Pago access token. Leave empty until payment credentials are configured.
+  MercadoPagoWebhookSecret:
+    Type: String
+    Default: ''
+    NoEcho: true
+    Description: Mercado Pago webhook signing secret.
+  NotificationFromEmail:
+    Type: String
+    Default: ''
+    AllowedPattern: '(^$|^[^@\s]+@[^@\s]+\.[^@\s]+$)'
+    ConstraintDescription: Provide a verified SES sender email address.
+    Description: Verified Amazon SES sender address for order notifications.
 
 Resources:
   FoodSaveHttpApi:
     Type: AWS::Serverless::HttpApi
     Properties:
       StageName: '$default'
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 20
+        ThrottlingRateLimit: 10
       CorsConfiguration:
         AllowOrigins:
           - !Ref FrontendOrigin
         AllowHeaders:
           - authorization
           - content-type
+          - x-order-token
         AllowMethods:
           - GET
           - POST
@@ -48,6 +72,13 @@ Resources:
           PRODUCTS_TABLE: !Ref FoodSaveProducts
           ORDERS_TABLE: !Ref FoodSaveOrders
           USERS_TABLE: !Ref FoodSaveUsers
+          RATE_LIMITS_TABLE: !Ref FoodSaveRateLimits
+          MERCHANTS_TABLE: !Ref FoodSaveMerchants
+          IMAGES_BUCKET: !Ref FoodSaveImages
+          MERCADOPAGO_ACCESS_TOKEN: !Ref MercadoPagoAccessToken
+          MERCADOPAGO_WEBHOOK_SECRET: !Ref MercadoPagoWebhookSecret
+          PUBLIC_API_URL: !Ref PublicApiUrl
+          FRONTEND_ORIGIN: !Ref FrontendOrigin
       Policies:
         - Statement:
             - Effect: Allow
@@ -62,10 +93,28 @@ Resources:
                 - !GetAtt FoodSaveOrders.Arn
             - Effect: Allow
               Action:
+                - dynamodb:UpdateItem
+              Resource:
+                - !GetAtt FoodSaveRateLimits.Arn
+            - Effect: Allow
+              Action:
+                - dynamodb:UpdateItem
+              Resource:
+                - !GetAtt FoodSaveOrders.Arn
+            - Effect: Allow
+              Action:
                 - dynamodb:GetItem
                 - dynamodb:PutItem
+                - dynamodb:UpdateItem
               Resource:
                 - !GetAtt FoodSaveUsers.Arn
+                - !GetAtt FoodSaveMerchants.Arn
+            - Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource:
+                - !Sub '${FoodSaveImages.Arn}/*'
       Events:
         Health:
           Type: HttpApi
@@ -85,6 +134,18 @@ Resources:
             ApiId: !Ref FoodSaveHttpApi
             Path: /orders
             Method: POST
+        GetOrderStatus:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref FoodSaveHttpApi
+            Path: /orders/{orderId}/status
+            Method: GET
+        MercadoPagoWebhook:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref FoodSaveHttpApi
+            Path: /webhooks/mercadopago
+            Method: POST
         GetProfile:
           Type: HttpApi
           Properties:
@@ -101,6 +162,215 @@ Resources:
             Method: PUT
             Auth:
               Authorizer: CognitoAuthorizer
+        MerchantApplication:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref FoodSaveHttpApi
+            Path: /merchant/application
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
+        SubmitMerchantApplication:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref FoodSaveHttpApi
+            Path: /merchant/application
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer
+        MerchantImageUploadUrl:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref FoodSaveHttpApi
+            Path: /merchant/images/upload-url
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer
+        MerchantCreateProduct:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref FoodSaveHttpApi
+            Path: /merchant/products
+            Method: POST
+            Auth:
+              Authorizer: CognitoAuthorizer
+        ReviewMerchantApplication:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref FoodSaveHttpApi
+            Path: /admin/merchant-applications/{sub}/decision
+            Method: PUT
+            Auth:
+              Authorizer: CognitoAuthorizer
+
+  OrderExpirationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: dist/expiration-handler.handler
+      Runtime: nodejs22.x
+      Timeout: 60
+      MemorySize: 256
+      Environment:
+        Variables:
+          DYNAMODB_ENDPOINT: ''
+          PRODUCTS_TABLE: !Ref FoodSaveProducts
+          ORDERS_TABLE: !Ref FoodSaveOrders
+          USERS_TABLE: !Ref FoodSaveUsers
+          RATE_LIMITS_TABLE: !Ref FoodSaveRateLimits
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:Query
+                - dynamodb:TransactWriteItems
+                - dynamodb:GetItem
+              Resource:
+                - !GetAtt FoodSaveOrders.Arn
+                - !Sub '${FoodSaveOrders.Arn}/index/*'
+                - !GetAtt FoodSaveProducts.Arn
+      Events:
+        ExpireReservations:
+          Type: Schedule
+          Properties:
+            Schedule: rate(1 minute)
+            Enabled: true
+
+  FoodSaveWebSocketApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: FoodSaveOrderUpdates
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: '$request.body.action'
+
+  FoodSaveWebSocketFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: dist/websocket-handler.handler
+      Runtime: nodejs22.x
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          ORDERS_TABLE: !Ref FoodSaveOrders
+          CONNECTIONS_TABLE: !Ref FoodSaveConnections
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+              Resource: !GetAtt FoodSaveOrders.Arn
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:DeleteItem
+              Resource: !GetAtt FoodSaveConnections.Arn
+
+  FoodSaveWebSocketIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref FoodSaveWebSocketApi
+      IntegrationType: AWS_PROXY
+      IntegrationMethod: POST
+      PayloadFormatVersion: '1.0'
+      IntegrationUri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${FoodSaveWebSocketFunction.Arn}/invocations'
+
+  FoodSaveWebSocketConnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref FoodSaveWebSocketApi
+      RouteKey: '$connect'
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${FoodSaveWebSocketIntegration}'
+
+  FoodSaveWebSocketDisconnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref FoodSaveWebSocketApi
+      RouteKey: '$disconnect'
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${FoodSaveWebSocketIntegration}'
+
+  FoodSaveWebSocketDefaultRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref FoodSaveWebSocketApi
+      RouteKey: '$default'
+      AuthorizationType: NONE
+      Target: !Sub 'integrations/${FoodSaveWebSocketIntegration}'
+
+  FoodSaveWebSocketStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref FoodSaveWebSocketApi
+      StageName: '$default'
+      AutoDeploy: true
+
+  FoodSaveWebSocketInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref FoodSaveWebSocketFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${FoodSaveWebSocketApi}/*/*'
+
+  FoodSaveNotificationFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: dist/notification-handler.handler
+      Runtime: nodejs22.x
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          CONNECTIONS_TABLE: !Ref FoodSaveConnections
+          NOTIFICATION_FROM_EMAIL: !Ref NotificationFromEmail
+          WEBSOCKET_MANAGEMENT_URL: !Sub 'https://${FoodSaveWebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/$default'
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:DescribeStream
+                - dynamodb:GetRecords
+                - dynamodb:GetShardIterator
+                - dynamodb:ListStreams
+              Resource: !GetAtt FoodSaveOrders.StreamArn
+            - Effect: Allow
+              Action:
+                - dynamodb:Query
+                - dynamodb:DeleteItem
+              Resource:
+                - !GetAtt FoodSaveConnections.Arn
+                - !Sub '${FoodSaveConnections.Arn}/index/*'
+            - Effect: Allow
+              Action:
+                - ses:SendEmail
+              Resource: '*'
+            - Effect: Allow
+              Action:
+                - sqs:SendMessage
+              Resource: !GetAtt FoodSaveNotificationDlq.Arn
+            - Effect: Allow
+              Action:
+                - execute-api:ManageConnections
+              Resource: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${FoodSaveWebSocketApi}/$default/POST/@connections/*'
+      Events:
+        OrderStatusChanged:
+          Type: DynamoDB
+          Properties:
+            Stream: !GetAtt FoodSaveOrders.StreamArn
+            StartingPosition: LATEST
+            BatchSize: 10
+            MaximumRetryAttempts: 3
+            BisectBatchOnFunctionError: true
+            DestinationConfig:
+              OnFailure:
+                Destination: !GetAtt FoodSaveNotificationDlq.Arn
+            FilterCriteria:
+              Filters:
+                - Pattern: '{"eventName":["MODIFY"],"dynamodb":{"OldImage":{"status":{"S":["pending_payment","expired"]}},"NewImage":{"status":{"S":["paid","expired","payment_late"]}}}}'
 
   FoodSaveUserPool:
     Type: AWS::Cognito::UserPool
@@ -135,6 +405,10 @@ Resources:
           AttributeDataType: String
           Mutable: true
           Required: false
+        - Name: privacy_version
+          AttributeDataType: String
+          Mutable: true
+          Required: false
 
   FoodSaveUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
@@ -146,6 +420,23 @@ Resources:
       ExplicitAuthFlows:
         - ALLOW_USER_SRP_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
+      ReadAttributes:
+        - email
+        - name
+        - phone_number
+        - custom:privacy_version
+      WriteAttributes:
+        - email
+        - name
+        - phone_number
+        - custom:privacy_version
+
+  FoodSaveAdmins:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: FoodSaveAdmins
+      Description: Administrators authorized to review merchant applications.
+      UserPoolId: !Ref FoodSaveUserPool
 
   FoodSaveUsers:
     Type: AWS::DynamoDB::Table
@@ -189,12 +480,104 @@ Resources:
     Properties:
       TableName: FoodSaveOrders
       BillingMode: PAY_PER_REQUEST
+      StreamSpecification:
+        StreamViewType: NEW_AND_OLD_IMAGES
       AttributeDefinitions:
         - AttributeName: id
+          AttributeType: S
+        - AttributeName: status
+          AttributeType: S
+        - AttributeName: paymentExpiresAt
           AttributeType: S
       KeySchema:
         - AttributeName: id
           KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: StatusExpiryIndex
+          KeySchema:
+            - AttributeName: status
+              KeyType: HASH
+            - AttributeName: paymentExpiresAt
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  FoodSaveConnections:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: FoodSaveConnections
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: connectionId
+          AttributeType: S
+        - AttributeName: orderId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: connectionId
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: OrderIdIndex
+          KeySchema:
+            - AttributeName: orderId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+
+  FoodSaveNotificationDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: FoodSaveNotificationDlq
+      MessageRetentionPeriod: 1209600
+
+  FoodSaveRateLimits:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: FoodSaveRateLimits
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: key
+          AttributeType: S
+      KeySchema:
+        - AttributeName: key
+          KeyType: HASH
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
+
+  FoodSaveMerchants:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: FoodSaveMerchants
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: sub
+          AttributeType: S
+      KeySchema:
+        - AttributeName: sub
+          KeyType: HASH
+
+  FoodSaveImages:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins:
+              - !Ref FrontendOrigin
+            AllowedMethods: [GET, POST]
+            AllowedHeaders: ['*']
+            MaxAge: 300
 
 Outputs:
   FoodSaveApiUrl:
@@ -206,3 +589,6 @@ Outputs:
   FoodSaveUserPoolClientId:
     Description: Public Cognito app client ID for the Angular frontend.
     Value: !Ref FoodSaveUserPoolClient
+  FoodSaveWebSocketUrl:
+    Description: WebSocket endpoint for order-status updates.
+    Value: !Sub 'wss://${FoodSaveWebSocketApi}.execute-api.${AWS::Region}.amazonaws.com/$default'

@@ -3,6 +3,7 @@ import { TestBed } from '@angular/core/testing';
 import { Observable, of, throwError } from 'rxjs';
 import { AppComponent } from './app.component';
 import { CreateOrderRequest, OrderReceipt } from './models/order.model';
+import { PRIVACY_POLICY_VERSION } from './models/privacy-policy';
 import { Product } from './models/product.model';
 import { AccountService } from './services/account.service';
 import { FoodsaveService } from './services/foodsave.service';
@@ -85,6 +86,7 @@ describe('AppComponent', () => {
     email: string;
     phone: string;
     password: string;
+    privacyPolicyVersion: string;
   }>;
 
   async function createLoadedApp() {
@@ -97,14 +99,18 @@ describe('AppComponent', () => {
 
   beforeEach(async () => {
     localStorage.removeItem('foodsave-cart');
+    sessionStorage.clear();
     submittedOrders = [];
     registrationRequests = [];
     productResponses = [of(demoProducts)];
     orderResponse = of({
       orderId: 'order-123',
-      status: 'reserved',
+      status: 'pending_payment',
       total: 4800,
-      createdAt: '2026-11-17T12:00:00.000Z'
+      createdAt: '2026-11-17T12:00:00.000Z',
+      paymentExpiresAt: '2026-11-17T12:15:00.000Z',
+      statusSubscriptionToken: 'private-token',
+      checkoutUrl: 'https://mercadopago.example/checkout'
     });
     await TestBed.configureTestingModule({
       imports: [AppComponent],
@@ -116,7 +122,8 @@ describe('AppComponent', () => {
             createOrder: (request: CreateOrderRequest) => {
               submittedOrders.push(request);
               return orderResponse;
-            }
+            },
+            navigateToPayment: () => undefined
           }
         },
         {
@@ -131,6 +138,7 @@ describe('AppComponent', () => {
               email: string;
               phone: string;
               password: string;
+              privacyPolicyVersion: string;
             }) => {
               registrationRequests.push(details);
             }
@@ -207,6 +215,9 @@ describe('AppComponent', () => {
     app.addToCart(demoProducts[0]);
     app.buyerName = 'Ana Pérez';
     app.buyerPhone = '+573001234567';
+    app.orderPrivacyAccepted = true;
+    const checkoutUrls: string[] = [];
+    app.navigateToPayment = (url) => checkoutUrls.push(url);
 
     app.finishOrder();
 
@@ -214,12 +225,15 @@ describe('AppComponent', () => {
       {
         buyerName: 'Ana Pérez',
         buyerPhone: '+573001234567',
+        privacyPolicyVersion: PRIVACY_POLICY_VERSION,
         delivery: { method: 'pickup' },
         items: [{ productId: '1', quantity: 1 }]
       }
     ]);
     expect(app.cartItems).toHaveLength(0);
     expect(app.cartOpen).toBe(false);
+    expect(checkoutUrls).toEqual(['https://mercadopago.example/checkout']);
+    expect(sessionStorage.getItem('foodsave-order-order-123')).toBe('private-token');
   });
 
   it('does not submit a reservation when buyer contact fields are empty', async () => {
@@ -234,12 +248,27 @@ describe('AppComponent', () => {
     expect(app.notice).toContain('Completa tu nombre y teléfono');
   });
 
+  it('requires privacy acceptance before creating a reservation', async () => {
+    const fixture = await createLoadedApp();
+    const app = fixture.componentInstance;
+    app.addToCart(demoProducts[0]);
+    app.buyerName = 'Ana Pérez';
+    app.buyerPhone = '+573001234567';
+
+    app.finishOrder();
+
+    expect(submittedOrders).toHaveLength(0);
+    expect(app.cartItems).toHaveLength(1);
+    expect(app.notice).toContain('Acepta la política de privacidad');
+  });
+
   it('requires an address when the customer selects home delivery', async () => {
     const fixture = await createLoadedApp();
     const app = fixture.componentInstance;
     app.addToCart(app.products[0]);
     app.buyerName = 'Ana Pérez';
     app.buyerPhone = '+573001234567';
+    app.orderPrivacyAccepted = true;
     app.deliveryMethod = 'delivery';
 
     app.finishOrder();
@@ -254,6 +283,7 @@ describe('AppComponent', () => {
     app.addToCart(app.products[0]);
     app.buyerName = 'Ana Pérez';
     app.buyerPhone = '+573001234567';
+    app.orderPrivacyAccepted = true;
     app.deliveryMethod = 'delivery';
     app.deliveryCity = 'Bogotá';
     app.deliveryZone = 'Norte';
@@ -284,6 +314,7 @@ describe('AppComponent', () => {
     app.addToCart(app.products[0]);
     app.buyerName = 'Ana Pérez';
     app.buyerPhone = '+573001234567';
+    app.orderPrivacyAccepted = true;
 
     app.finishOrder();
     await fixture.whenStable();
@@ -314,6 +345,7 @@ describe('AppComponent', () => {
     app.accountEmail = 'ana@example.com';
     app.accountPhone = '+573001234567';
     app.accountPassword = 'Comida2026';
+    app.accountPrivacyAccepted = true;
 
     await app.submitRegistration();
 
@@ -322,10 +354,22 @@ describe('AppComponent', () => {
         name: 'Ana Pérez',
         email: 'ana@example.com',
         phone: '+573001234567',
-        password: 'Comida2026'
+        password: 'Comida2026',
+        privacyPolicyVersion: PRIVACY_POLICY_VERSION
       }
     ]);
     expect(app.accountMode).toBe('confirm');
     expect(app.accountMessage).toContain('código de verificación');
+  });
+
+  it('requires privacy acceptance before account registration', async () => {
+    const fixture = await createLoadedApp();
+    const app = fixture.componentInstance;
+    app.openAccount();
+
+    await app.submitRegistration();
+
+    expect(registrationRequests).toHaveLength(0);
+    expect(app.accountError).toContain('aceptar la política de privacidad');
   });
 });

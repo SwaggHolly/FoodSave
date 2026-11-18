@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import type {
   CreateOrderRequest,
   Order,
@@ -29,6 +29,18 @@ export class ReserveOrderService {
   ) {}
 
   async execute(request: CreateOrderRequest): Promise<OrderReceipt> {
+    const order = await this.createOrder(request);
+    return {
+      orderId: order.id,
+      status: 'pending_payment',
+      total: order.total,
+      createdAt: order.createdAt,
+      paymentExpiresAt: order.paymentExpiresAt,
+      statusSubscriptionToken: order.statusSubscriptionToken ?? ''
+    };
+  }
+
+  async createOrder(request: CreateOrderRequest): Promise<Order> {
     const products = await this.repository.getProductsByIds(
       request.items.map((item) => item.productId)
     );
@@ -38,6 +50,8 @@ export class ReserveOrderService {
     }
 
     const now = this.now();
+    const createdAt = now.toISOString();
+    const statusSubscriptionToken = randomBytes(32).toString('base64url');
     const orderItems = request.items.map((item) => {
       const product = productsById.get(item.productId);
       if (!product) throw new ProductNotFoundError();
@@ -53,22 +67,25 @@ export class ReserveOrderService {
 
     const order: Order = {
       id: this.createId(),
+      statusSubscriptionToken,
+      statusSubscriptionTokenHash: createHash('sha256')
+        .update(statusSubscriptionToken)
+        .digest('hex'),
       buyerName: request.buyerName,
       buyerPhone: request.buyerPhone,
+      ...(request.buyerEmail ? { buyerEmail: request.buyerEmail } : {}),
+      privacyPolicyVersion: request.privacyPolicyVersion,
+      privacyAcceptedAt: createdAt,
       delivery: request.delivery ?? { method: 'pickup' },
-      status: 'reserved',
+      status: 'pending_payment',
       items: orderItems,
       total: orderItems.reduce((total, item) => total + item.lineTotal, 0),
-      createdAt: now.toISOString()
+      createdAt,
+      paymentExpiresAt: new Date(now.getTime() + 15 * 60 * 1000).toISOString()
     };
 
     await this.repository.createOrder(order);
-    return {
-      orderId: order.id,
-      status: order.status,
-      total: order.total,
-      createdAt: order.createdAt
-    };
+    return order;
   }
 
   private assertAvailable(product: Product, quantity: number, now: Date): void {

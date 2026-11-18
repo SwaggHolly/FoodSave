@@ -1,6 +1,6 @@
 # FoodSave API
 
-REST API basada en AWS Lambda, API Gateway HTTP API, Amazon Cognito y DynamoDB. El catálogo y las reservas como invitado siguen siendo públicos; el perfil de la cuenta requiere un JWT válido de Cognito. No procesa pagos.
+API serverless basada en AWS Lambda, API Gateway, DynamoDB, Cognito y S3. Incluye pagos Mercado Pago, aprobación de comercios y notificaciones asíncronas por DynamoDB Streams, Amazon SES y WebSocket.
 
 El contrato HTTP está en [openapi.yaml](./openapi.yaml).
 
@@ -42,7 +42,7 @@ npm start
 
 La aplicación queda en `http://localhost:4200`. La API queda en `http://localhost:3000`; se puede comprobar con `curl http://localhost:3000/health`.
 
-El entorno local permite probar catálogo, carrito y reservas como invitado. El registro requiere un User Pool Cognito desplegado: SAM local no emula Cognito ni sus tokens.
+Con `env.local.example.json`, el entorno local permite probar el catálogo y el carrito. Las reservas permanecen deshabilitadas hasta configurar Mercado Pago; no se simula un pago ni se retiene inventario si faltan credenciales. Cognito, S3, SES y WebSocket requieren recursos desplegados en AWS.
 
 Para apagar DynamoDB local: `docker compose down`. El volumen `dynamodb-data` conserva los datos entre reinicios.
 
@@ -65,11 +65,15 @@ npm run build -- --configuration production
 
 - `GET /health`
 - `GET /products` con filtros opcionales `category` y `search`
-- `POST /orders` con `buyerName`, `buyerPhone`, `items: [{ productId, quantity }]` y un `delivery` opcional. Para domicilio incluye ciudad, zona, barrio y dirección; si se omite, se considera recogida.
+- `POST /orders` con `buyerName`, `buyerPhone`, `items: [{ productId, quantity }]` y un `delivery` opcional. Inicia checkout de Mercado Pago y devuelve un token privado de seguimiento.
+- `GET /orders/{orderId}/status` requiere el token de seguimiento en el encabezado `x-order-token`.
+- `POST /webhooks/mercadopago` verifica la firma y consulta el pago directamente antes de confirmar la reserva.
 - `GET /profile` (JWT Cognito obligatorio)
 - `PUT /profile` (JWT Cognito obligatorio, cuerpo `name` y `phone`)
+- `GET|POST /merchant/application`, `POST /merchant/images/upload-url` y `POST /merchant/products` (JWT y aprobación de comercio obligatorios)
+- `PUT /admin/merchant-applications/{sub}/decision` (grupo Cognito `FoodSaveAdmins`)
 
-El servidor calcula el total desde los precios del catálogo. No acepta precios enviados por el cliente y responde `409` si el stock cambió o el producto venció. El costo y la cobertura del domicilio aún los confirma la tienda; el MVP no calcula tarifas ni rastrea envíos. No hay cuentas de comercio ni pagos en esta primera fase.
+El servidor calcula el total desde el catálogo y retiene inventario por 15 minutos. Solo el webhook firmado confirma pagos; la expiración libera el inventario. El costo y la cobertura del domicilio aún los confirma la tienda. Las imágenes quedan privadas en S3 y se muestran mediante URLs temporales.
 
 ## Desplegar en AWS
 
@@ -87,11 +91,12 @@ Configura `FrontendOrigin` con el dominio real del frontend. Después de despleg
 npm run seed:aws
 ```
 
-SAM muestra los outputs `FoodSaveApiUrl`, `FoodSaveUserPoolId` y `FoodSaveUserPoolClientId`. Configura esos valores en `foodsave-frontend/src/environments/environment.production.ts` antes de compilar el frontend para producción:
+SAM muestra los outputs `FoodSaveApiUrl`, `FoodSaveUserPoolId`, `FoodSaveUserPoolClientId` y `FoodSaveWebSocketUrl`. Configura esos valores en `foodsave-frontend/src/environments/environment.production.ts` antes de compilar el frontend para producción:
 
 ```ts
 export const environment = {
   apiBaseUrl: 'URL FoodSaveApiUrl',
+  websocketUrl: 'URL FoodSaveWebSocketUrl',
   cognito: {
     userPoolId: 'VALOR FoodSaveUserPoolId',
     userPoolClientId: 'VALOR FoodSaveUserPoolClientId'
@@ -99,6 +104,10 @@ export const environment = {
 };
 ```
 
-Para probar el frontend local contra la API y Cognito desplegados, configura las mismas salidas en `foodsave-frontend/src/environments/environment.ts`. Los IDs del User Pool y del cliente son identificadores públicos; no pongas claves secretas en el frontend. Revisa que `FrontendOrigin` coincida con el dominio que abre la aplicación. Los recursos de AWS pueden generar cargos según el uso y la región.
+Completa los parámetros de despliegue `MercadoPagoAccessToken`, `MercadoPagoWebhookSecret`, `NotificationFromEmail`, `FrontendOrigin` y `PublicApiUrl`. El correo remitente debe estar verificado en SES; las cuentas SES en sandbox también requieren verificar a los destinatarios. `PublicApiUrl` se conoce después del primer despliegue: actualiza el stack con la URL de `FoodSaveApiUrl` para habilitar notificaciones de Mercado Pago. No pongas secretos en los archivos del frontend ni los subas al repositorio.
 
-No guardes credenciales de AWS ni archivos `.env.local` en el repositorio. Los perfiles guardan nombre, correo y teléfono; las reservas a domicilio también guardan la dirección indicada. Publica la aplicación solo después de definir y mostrar una política de privacidad adecuada. La creación de reservas como invitado sigue necesitando límites contra abuso antes de abrirla al público.
+Asigna administradores de forma manual, por ejemplo con `aws cognito-idp admin-add-user-to-group --user-pool-id <FoodSaveUserPoolId> --username <correo> --group-name FoodSaveAdmins`. No habilites autoservicio de aprobación.
+
+La política de privacidad del frontend es un borrador con campos pendientes de completar y revisión legal en Colombia; no es una política lista para producción. Configura también la URL WebSocket en el entorno del frontend para recibir cambios de estado en tiempo real. Los errores persistentes de notificación terminan en `FoodSaveNotificationDlq`; configura alarmas y un procedimiento de reintento/inspección antes de producción.
+
+Los perfiles guardan nombre, correo y teléfono; las reservas a domicilio guardan la dirección indicada. No guardes credenciales de AWS ni archivos `env.local.json` en el repositorio. Los recursos AWS pueden generar cargos.

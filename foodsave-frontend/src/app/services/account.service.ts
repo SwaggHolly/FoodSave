@@ -3,6 +3,13 @@ import { Inject, Injectable, PLATFORM_ID, signal } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { PRIVACY_POLICY_VERSION } from '../models/privacy-policy';
+import type {
+  MerchantApplication,
+  MerchantApplicationRequest,
+  MerchantImageUpload,
+  MerchantProductRequest
+} from '../models/merchant.model';
 import type { UpdateUserProfile, UserProfile } from '../models/user-profile.model';
 
 interface AccountCredentials {
@@ -13,6 +20,7 @@ interface AccountCredentials {
 interface RegistrationDetails extends AccountCredentials {
   name: string;
   phone: string;
+  privacyPolicyVersion: string;
 }
 
 interface AccountIdentity {
@@ -24,6 +32,7 @@ interface AccountIdentity {
 export class AccountService {
   readonly user = signal<AccountIdentity | null>(null);
   readonly profile = signal<UserProfile | null>(null);
+  readonly merchant = signal<MerchantApplication | null>(null);
   readonly isConfigured = Boolean(
     environment.cognito.userPoolId &&
       environment.cognito.userPoolClientId &&
@@ -49,6 +58,7 @@ export class AccountService {
         userAttributes: {
           email: details.email.trim().toLowerCase(),
           name: details.name.trim(),
+          'custom:privacy_version': details.privacyPolicyVersion,
           ...(details.phone.trim() ? { phone_number: details.phone.trim() } : {})
         }
       }
@@ -68,7 +78,10 @@ export class AccountService {
     await auth.resendSignUpCode({ username: email.trim().toLowerCase() });
   }
 
-  async signInWithEmail(credentials: AccountCredentials): Promise<UserProfile> {
+  async signInWithEmail(
+    credentials: AccountCredentials,
+    privacyPolicyVersion: string
+  ): Promise<UserProfile> {
     const auth = await this.loadAuthModule();
     const result = await auth.signIn({
       username: credentials.email.trim().toLowerCase(),
@@ -77,6 +90,12 @@ export class AccountService {
     if (!result.isSignedIn) {
       throw new Error('No se pudo completar el inicio de sesión. Verifica tu cuenta.');
     }
+    await auth.updateUserAttributes({
+      userAttributes: {
+        'custom:privacy_version': privacyPolicyVersion
+      }
+    });
+    await auth.fetchAuthSession({ forceRefresh: true });
     return this.loadProfileForCurrentUser();
   }
 
@@ -85,6 +104,13 @@ export class AccountService {
     const auth = await this.loadAuthModule();
     const session = await auth.fetchAuthSession();
     if (!session.tokens?.idToken) return null;
+    const attributes = await auth.fetchUserAttributes();
+    if (attributes['custom:privacy_version'] !== PRIVACY_POLICY_VERSION) {
+      await auth.signOut();
+      throw new Error(
+        'Tu sesión se cerró porque debes aceptar la política de privacidad vigente. Inicia sesión para continuar.'
+      );
+    }
     return this.loadProfileForCurrentUser();
   }
 
@@ -98,11 +124,78 @@ export class AccountService {
     return profile;
   }
 
+  async loadMerchantApplication(): Promise<MerchantApplication | null> {
+    const headers = await this.authorizationHeaders();
+    try {
+      const application = await firstValueFrom(
+        this.http.get<MerchantApplication>(
+          `${environment.apiBaseUrl}/merchant/application`,
+          { headers }
+        )
+      );
+      this.merchant.set(application);
+      return application;
+    } catch (error: unknown) {
+      if (error instanceof HttpErrorResponse && error.status === 404) {
+        this.merchant.set(null);
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async submitMerchantApplication(
+    input: MerchantApplicationRequest
+  ): Promise<MerchantApplication> {
+    const headers = await this.authorizationHeaders();
+    const application = await firstValueFrom(
+      this.http.post<MerchantApplication>(
+        `${environment.apiBaseUrl}/merchant/application`,
+        input,
+        { headers }
+      )
+    );
+    this.merchant.set(application);
+    return application;
+  }
+
+  async uploadMerchantImage(file: File): Promise<string> {
+    const headers = await this.authorizationHeaders();
+    const upload = await firstValueFrom(
+      this.http.post<MerchantImageUpload>(
+        `${environment.apiBaseUrl}/merchant/images/upload-url`,
+        { contentType: file.type },
+        { headers }
+      )
+    );
+    const formData = new FormData();
+    for (const [name, value] of Object.entries(upload.fields)) {
+      formData.append(name, value);
+    }
+    formData.append('file', file);
+    await firstValueFrom(
+      this.http.post(upload.url, formData, { responseType: 'text' })
+    );
+    return upload.key;
+  }
+
+  async createMerchantProduct(
+    input: MerchantProductRequest
+  ): Promise<void> {
+    const headers = await this.authorizationHeaders();
+    await firstValueFrom(
+      this.http.post(`${environment.apiBaseUrl}/merchant/products`, input, {
+        headers
+      })
+    );
+  }
+
   async signOutCurrentUser(): Promise<void> {
     const auth = await this.loadAuthModule();
     await auth.signOut();
     this.user.set(null);
     this.profile.set(null);
+    this.merchant.set(null);
   }
 
   private async loadProfileForCurrentUser(): Promise<UserProfile> {
@@ -119,6 +212,8 @@ export class AccountService {
       email,
       name: attributes.name?.trim() || email,
       phone: attributes.phone_number?.trim() ?? '',
+      privacyPolicyVersion:
+        attributes['custom:privacy_version'] ?? '',
       updatedAt: ''
     };
     this.user.set({ sub: currentUser.userId, email });
@@ -128,13 +223,21 @@ export class AccountService {
       const profile = await firstValueFrom(
         this.http.get<UserProfile>(`${environment.apiBaseUrl}/profile`, { headers })
       );
+      if (profile.privacyPolicyVersion !== PRIVACY_POLICY_VERSION) {
+        return this.saveProfile({
+          name: profile.name,
+          phone: profile.phone,
+          privacyPolicyVersion: PRIVACY_POLICY_VERSION
+        });
+      }
       this.profile.set(profile);
       return profile;
     } catch (error: unknown) {
       if (!(error instanceof HttpErrorResponse) || error.status !== 404) throw error;
       return this.saveProfile({
         name: initialProfile.name,
-        phone: initialProfile.phone
+        phone: initialProfile.phone,
+        privacyPolicyVersion: PRIVACY_POLICY_VERSION
       });
     }
   }

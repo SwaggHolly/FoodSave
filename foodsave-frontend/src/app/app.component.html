@@ -31,6 +31,12 @@
 </header>
 
 <main>
+  @if (paymentStatusMessage) {
+    <div class="account-feedback account-success" role="status" aria-live="polite">
+      {{ paymentStatusMessage }}
+    </div>
+  }
+
   <section class="hero" id="inicio">
     <div class="hero-copy">
       <span class="eyebrow"><span class="live-dot"></span> BUENO PARA TI, MEJOR PARA EL PLANETA</span>
@@ -152,6 +158,9 @@
   <a class="brand footer-brand" href="#inicio"><span class="brand-mark" aria-hidden="true">F</span><span>food<span>save</span></span></a>
   <p>Rescatando alimentos, construyendo un futuro mejor. 🌱</p>
   <a href="mailto:hola@foodsave.co">¿Tienes una tienda? <strong>Únete a FoodSave</strong></a>
+  <button type="button" class="privacy-footer-link" (click)="privacyPolicyOpen = true">
+    Política de privacidad
+  </button>
 </footer>
 
 @if (cartOpen) {
@@ -203,6 +212,17 @@
                 autocomplete="tel"
                 maxlength="20"
                 placeholder="+57 300 123 4567"
+              />
+            </label>
+            <label>
+              Correo electrónico <span>(opcional, para novedades del pedido)</span>
+              <input
+                type="email"
+                name="buyerEmail"
+                [(ngModel)]="buyerEmail"
+                autocomplete="email"
+                maxlength="254"
+                placeholder="tu@correo.com"
               />
             </label>
             <label>
@@ -271,6 +291,19 @@
               </div>
             }
           </div>
+          <label class="privacy-consent">
+            <input
+              type="checkbox"
+              name="orderPrivacyAccepted"
+              [(ngModel)]="orderPrivacyAccepted"
+            />
+            <span>
+              Acepto el tratamiento de mis datos según la
+              <button type="button" class="inline-link" (click)="privacyPolicyOpen = true">
+                política de privacidad (borrador)
+              </button>.
+            </span>
+          </label>
           <small>
             @if (deliveryMethod === 'delivery') {
               La tienda confirmará cobertura, costo y tiempo del domicilio antes de coordinar la entrega.
@@ -287,6 +320,8 @@
               isSubmittingOrder ||
               !buyerName.trim() ||
               !buyerPhone.trim() ||
+              !orderPrivacyAccepted ||
+              (buyerEmail.trim() && !buyerEmail.includes('@')) ||
               (deliveryMethod === 'delivery' &&
                 (!deliveryCity.trim() ||
                   !deliveryZone.trim() ||
@@ -327,6 +362,7 @@
               @case ('confirm') { Verifica tu correo }
               @case ('signin') { Inicia sesión }
               @case ('profile') { Mis datos }
+              @case ('merchant') { Mi tienda }
             }
           </h2>
         </div>
@@ -397,6 +433,20 @@
               />
             </label>
             <small class="account-hint">Usa al menos 8 caracteres, una mayúscula, una minúscula y un número.</small>
+            <label class="privacy-consent">
+              <input
+                type="checkbox"
+                name="accountPrivacyAccepted"
+                [(ngModel)]="accountPrivacyAccepted"
+                required
+              />
+              <span>
+                Acepto el tratamiento de mis datos según la
+                <button type="button" class="inline-link" (click)="privacyPolicyOpen = true">
+                  política de privacidad (borrador)
+                </button>.
+              </span>
+            </label>
             <button class="primary-button account-submit" type="submit" [disabled]="isSubmittingAccount">
               {{ isSubmittingAccount ? 'Creando cuenta...' : 'Crear cuenta' }}
             </button>
@@ -452,6 +502,20 @@
                 required
               />
             </label>
+            <label class="privacy-consent">
+              <input
+                type="checkbox"
+                name="accountPrivacyAccepted"
+                [(ngModel)]="accountPrivacyAccepted"
+                required
+              />
+              <span>
+                Acepto el tratamiento de mis datos según la
+                <button type="button" class="inline-link" (click)="privacyPolicyOpen = true">
+                  política de privacidad (borrador)
+                </button>.
+              </span>
+            </label>
             <button class="primary-button account-submit" type="submit" [disabled]="isSubmittingAccount">
               {{ isSubmittingAccount ? 'Ingresando...' : 'Iniciar sesión' }}
             </button>
@@ -460,7 +524,7 @@
               <button type="button" (click)="setAccountMode('signup')">Regístrate</button>
             </p>
           </form>
-        } @else {
+        } @else if (accountMode === 'profile') {
           <form class="account-form" (ngSubmit)="saveAccountProfile()">
             <label>
               Nombre completo
@@ -493,10 +557,172 @@
             <button class="primary-button account-submit" type="submit" [disabled]="isSubmittingAccount">
               {{ isSubmittingAccount ? 'Guardando...' : 'Guardar mis datos' }}
             </button>
+            <div class="merchant-account-card">
+              <strong>¿Tienes una tienda?</strong>
+              @if (merchantLoading) {
+                <span>Consultando el estado de tu comercio...</span>
+              } @else if (account.merchant()?.status === 'pending_review') {
+                <span>Tu solicitud está en revisión.</span>
+              } @else if (account.merchant()?.status === 'rejected') {
+                <span>La solicitud no fue aprobada. Contacta al equipo para más información.</span>
+              } @else if (account.merchant()?.status === 'approved') {
+                <span>Tu tienda está aprobada y puede publicar productos.</span>
+              } @else {
+                <span>Solicita aprobación para publicar tus ofertas.</span>
+              }
+              <button
+                type="button"
+                class="inline-link"
+                [disabled]="merchantLoading || account.merchant()?.status === 'pending_review' || account.merchant()?.status === 'rejected'"
+                (click)="accountMode = 'merchant'; accountError = ''; accountMessage = ''"
+              >
+                {{ account.merchant()?.status === 'approved' ? 'Publicar un producto' : 'Gestionar mi tienda' }}
+              </button>
+            </div>
             <button class="account-signout" type="button" [disabled]="isSubmittingAccount" (click)="signOut()">
               Cerrar sesión
             </button>
           </form>
+        } @else {
+          @if (account.merchant()?.status === 'approved') {
+            <form class="account-form" (ngSubmit)="submitMerchantProduct()">
+              <p class="account-description">
+                Tienda aprobada: <strong>{{ account.merchant()?.storeName }}</strong>.
+                Las imágenes se guardan en privado y se muestran mediante enlaces temporales.
+              </p>
+              <label>
+                Nombre del producto
+                <input
+                  type="text"
+                  name="merchantProductTitle"
+                  [(ngModel)]="merchantProductTitle"
+                  minlength="2"
+                  maxlength="100"
+                  required
+                />
+              </label>
+              <label>
+                Categoría
+                <select name="merchantProductCategory" [(ngModel)]="merchantProductCategory">
+                  <option value="frutas">Frutas y verduras</option>
+                  <option value="panaderia">Panadería</option>
+                  <option value="lacteos">Lácteos</option>
+                  <option value="sorpresa">Sorpresas</option>
+                </select>
+              </label>
+              <div class="merchant-price-fields">
+                <label>
+                  Precio original (COP)
+                  <input
+                    type="number"
+                    name="merchantOriginalPrice"
+                    [(ngModel)]="merchantOriginalPrice"
+                    min="1"
+                    required
+                  />
+                </label>
+                <label>
+                  Precio FoodSave (COP)
+                  <input
+                    type="number"
+                    name="merchantDiscountPrice"
+                    [(ngModel)]="merchantDiscountPrice"
+                    min="1"
+                    required
+                  />
+                </label>
+              </div>
+              <label>
+                Fecha de vencimiento
+                <input
+                  type="date"
+                  name="merchantExpirationDate"
+                  [(ngModel)]="merchantExpirationDate"
+                  required
+                />
+              </label>
+              <label>
+                Unidades disponibles
+                <input
+                  type="number"
+                  name="merchantProductStock"
+                  [(ngModel)]="merchantProductStock"
+                  min="1"
+                  max="1000"
+                  required
+                />
+              </label>
+              <label>
+                Foto del producto (JPEG, PNG o WebP; máximo 5 MB)
+                <input
+                  type="file"
+                  name="merchantProductImage"
+                  accept="image/jpeg,image/png,image/webp"
+                  (change)="onMerchantImageSelected($event)"
+                  required
+                />
+              </label>
+              <button class="primary-button account-submit" type="submit" [disabled]="isSubmittingAccount">
+                {{ isSubmittingAccount ? 'Publicando...' : 'Publicar producto' }}
+              </button>
+            </form>
+          } @else if (account.merchant()) {
+            <div class="merchant-status" role="status">
+              <span aria-hidden="true">🕒</span>
+              <h3>
+                @if (account.merchant()?.status === 'pending_review') {
+                  Tu solicitud está en revisión
+                } @else {
+                  La solicitud no fue aprobada
+                }
+              </h3>
+              <p>
+                @if (account.merchant()?.status === 'pending_review') {
+                  Revisaremos los datos del comercio manualmente antes de habilitar publicaciones.
+                } @else {
+                  Si necesitas más información, escribe a hola@foodsave.co.
+                }
+              </p>
+            </div>
+          } @else {
+            <form class="account-form" (ngSubmit)="submitMerchantApplication()">
+              <p class="account-description">El equipo revisa cada comercio antes de publicar productos.</p>
+              <label>
+                Nombre de la tienda
+                <input type="text" name="merchantStoreName" [(ngModel)]="merchantStoreName" minlength="2" maxlength="100" required />
+              </label>
+              <label>
+                Responsable
+                <input type="text" name="merchantOwnerName" [(ngModel)]="merchantOwnerName" minlength="2" maxlength="80" required />
+              </label>
+              <label>
+                Correo de contacto
+                <input type="email" name="merchantEmail" [(ngModel)]="merchantEmail" maxlength="254" required />
+              </label>
+              <label>
+                Teléfono
+                <input type="tel" name="merchantPhone" [(ngModel)]="merchantPhone" minlength="7" maxlength="20" required />
+              </label>
+              <label>
+                Ciudad
+                <input type="text" name="merchantCity" [(ngModel)]="merchantCity" maxlength="80" required />
+              </label>
+              <label>
+                Dirección del establecimiento
+                <input type="text" name="merchantAddress" [(ngModel)]="merchantAddress" maxlength="160" required />
+              </label>
+              <label>
+                Descripción <span>(opcional)</span>
+                <textarea name="merchantDescription" [(ngModel)]="merchantDescription" maxlength="500" rows="3"></textarea>
+              </label>
+              <button class="primary-button account-submit" type="submit" [disabled]="isSubmittingAccount">
+                {{ isSubmittingAccount ? 'Enviando...' : 'Enviar solicitud' }}
+              </button>
+            </form>
+          }
+          <p class="account-switch">
+            <button type="button" (click)="accountMode = 'profile'">Volver a mis datos</button>
+          </p>
         }
 
         @if (accountError) {
@@ -509,6 +735,11 @@
     </section>
   </div>
 }
+
+<app-privacy-policy
+  [open]="privacyPolicyOpen"
+  (closed)="privacyPolicyOpen = false"
+></app-privacy-policy>
 
 @if (notice) {
   <div class="toast" role="status" aria-live="polite">{{ notice }}</div>

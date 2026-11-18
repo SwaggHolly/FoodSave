@@ -8,16 +8,24 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "tsx --test handler.test.ts src/adapters/output/database/dynamodb-foodsave-repository.test.ts src/domain/models/order.test.ts src/domain/models/product.test.ts src/domain/services/reserve-order.test.ts src/seed/products.test.ts",
+    "lint:openapi": "redocly lint openapi.yaml",
+    "test": "tsx --test handler.test.ts src/adapters/output/database/dynamodb-foodsave-repository.test.ts src/adapters/output/payment/mercado-pago-payment-gateway.test.ts src/domain/models/order.test.ts src/domain/models/product.test.ts src/domain/services/reserve-order.test.ts src/seed/products.test.ts",
     "seed:local": "tsx scripts/seed.ts --local",
     "seed:aws": "tsx scripts/seed.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-apigatewaymanagementapi": "^3.1171.0",
     "@aws-sdk/client-dynamodb": "^3.883.0",
+    "@aws-sdk/client-s3": "^3.1171.0",
+    "@aws-sdk/client-sesv2": "^3.1171.0",
     "@aws-sdk/lib-dynamodb": "^3.883.0",
+    "@aws-sdk/s3-presigned-post": "^3.1171.0",
+    "@aws-sdk/s3-request-presigner": "^3.1171.0",
+    "@aws-sdk/util-dynamodb": "^3.996.9",
     "zod": "^4.1.12"
   },
   "devDependencies": {
+    "@redocly/cli": "^2.79.0",
     "@types/aws-lambda": "^8.10.152",
     "@types/node": "^22.15.30",
     "tsx": "^4.20.6",

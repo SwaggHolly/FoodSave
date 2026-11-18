@@ -1,14 +1,30 @@
-import { DynamoDBClient, TransactionCanceledException } from '@aws-sdk/client-dynamodb';
+import { createHash } from 'node:crypto';
+import {
+  ConditionalCheckFailedException,
+  DynamoDBClient,
+  TransactionCanceledException
+} from '@aws-sdk/client-dynamodb';
 import {
   DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
   QueryCommand,
   ScanCommand,
-  TransactWriteCommand
+  TransactWriteCommand,
+  UpdateCommand
 } from '@aws-sdk/lib-dynamodb';
 import type { ScanCommandInput } from '@aws-sdk/lib-dynamodb';
-import type { Order } from '../../../domain/models/order.js';
+import {
+  orderSchema,
+  type Order
+} from '../../../domain/models/order.js';
+import {
+  merchantApplicationSchema,
+  MerchantApplicationAlreadyExistsError,
+  MerchantNotApprovedError,
+  type MerchantApplication,
+  type MerchantApplicationRequest
+} from '../../../domain/models/merchant.js';
 import { productSchema, type Product, type ProductCategory } from '../../../domain/models/product.js';
 import type {
   UpdateUserProfile,
@@ -24,6 +40,10 @@ import { InventoryConflictError } from '../../../domain/services/reserve-order.j
 const productsTable = process.env.PRODUCTS_TABLE ?? 'FoodSaveProducts';
 const ordersTable = process.env.ORDERS_TABLE ?? 'FoodSaveOrders';
 const usersTable = process.env.USERS_TABLE ?? 'FoodSaveUsers';
+const rateLimitsTable = process.env.RATE_LIMITS_TABLE ?? 'FoodSaveRateLimits';
+const merchantsTable = process.env.MERCHANTS_TABLE ?? 'FoodSaveMerchants';
+const reservationRateLimit = 5;
+const reservationWindowSeconds = 10 * 60;
 const endpoint = process.env.DYNAMODB_ENDPOINT;
 
 const documentClient = DynamoDBDocumentClient.from(
@@ -104,6 +124,7 @@ export class DynamoDBFoodSaveRepository implements FoodSaveRepository {
   }
 
   async createOrder(order: Order): Promise<void> {
+    const { statusSubscriptionToken: _statusSubscriptionToken, ...persistedOrder } = order;
     try {
       await this.client.send(
         new TransactWriteCommand({
@@ -128,7 +149,7 @@ export class DynamoDBFoodSaveRepository implements FoodSaveRepository {
             {
               Put: {
                 TableName: ordersTable,
-                Item: order,
+                Item: persistedOrder,
                 ConditionExpression: 'attribute_not_exists(id)'
               }
             }
@@ -139,6 +160,276 @@ export class DynamoDBFoodSaveRepository implements FoodSaveRepository {
       if (error instanceof TransactionCanceledException) {
         throw new InventoryConflictError();
       }
+      throw error;
+    }
+  }
+
+  async getOrder(orderId: string): Promise<Order | undefined> {
+    const response = await this.client.send(
+      new GetCommand({
+        TableName: ordersTable,
+        Key: { id: orderId },
+        ConsistentRead: true
+      })
+    );
+    return response.Item ? orderSchema.parse(response.Item) : undefined;
+  }
+
+  async attachPaymentPreference(
+    orderId: string,
+    preferenceId: string,
+    checkoutUrl: string
+  ): Promise<void> {
+    await this.client.send(
+      new UpdateCommand({
+        TableName: ordersTable,
+        Key: { id: orderId },
+        UpdateExpression: 'SET #preferenceId = :preferenceId, #checkoutUrl = :checkoutUrl',
+        ConditionExpression: '#status = :pending',
+        ExpressionAttributeNames: {
+          '#preferenceId': 'paymentPreferenceId',
+          '#checkoutUrl': 'checkoutUrl',
+          '#status': 'status'
+        },
+        ExpressionAttributeValues: {
+          ':preferenceId': preferenceId,
+          ':checkoutUrl': checkoutUrl,
+          ':pending': 'pending_payment'
+        }
+      })
+    );
+  }
+
+  async markOrderPaid(orderId: string, paymentId: string, paidAt: Date): Promise<boolean> {
+    const paidAtIso = paidAt.toISOString();
+    try {
+      await this.client.send(
+        new UpdateCommand({
+          TableName: ordersTable,
+          Key: { id: orderId },
+          UpdateExpression:
+            'SET #status = :paid, #paymentId = :paymentId, #paidAt = :paidAt',
+          ConditionExpression:
+            '#status = :pending AND #paymentExpiresAt > :paidAt',
+          ExpressionAttributeNames: {
+            '#status': 'status',
+            '#paymentId': 'paymentId',
+            '#paidAt': 'paidAt',
+            '#paymentExpiresAt': 'paymentExpiresAt'
+          },
+          ExpressionAttributeValues: {
+            ':paid': 'paid',
+            ':paymentId': paymentId,
+            ':paidAt': paidAtIso,
+            ':pending': 'pending_payment'
+          }
+        })
+      );
+      return true;
+    } catch (error: unknown) {
+      if (!(error instanceof ConditionalCheckFailedException)) throw error;
+      const current = await this.getOrder(orderId);
+      return current?.status === 'paid' && current.paymentId === paymentId;
+    }
+  }
+
+  async markOrderPaymentLate(
+    orderId: string,
+    paymentId: string,
+    paidAt: Date
+  ): Promise<void> {
+    const paidAtIso = paidAt.toISOString();
+    const order = await this.getOrder(orderId);
+    if (!order) throw new Error('No se encontró la reserva del pago aprobado.');
+    if (order.status === 'payment_late' && order.paymentId === paymentId) return;
+    if (order.status === 'paid') {
+      if (order.paymentId === paymentId) return;
+      throw new Error('La reserva ya fue confirmada con otro pago.');
+    }
+
+    if (order.status === 'expired') {
+      await this.client.send(
+        new UpdateCommand({
+          TableName: ordersTable,
+          Key: { id: orderId },
+          UpdateExpression:
+            'SET #status = :late, #paymentId = :paymentId, #paidAt = :paidAt',
+          ConditionExpression: '#status = :expired',
+          ExpressionAttributeNames: {
+            '#status': 'status',
+            '#paymentId': 'paymentId',
+            '#paidAt': 'paidAt'
+          },
+          ExpressionAttributeValues: {
+            ':late': 'payment_late',
+            ':expired': 'expired',
+            ':paymentId': paymentId,
+            ':paidAt': paidAtIso
+          }
+        })
+      );
+      return;
+    }
+
+    if (
+      order.status !== 'pending_payment' ||
+      order.paymentExpiresAt > paidAtIso
+    ) {
+      throw new Error('La reserva no está vencida ni puede recibir este pago.');
+    }
+
+    await this.client.send(
+      new TransactWriteCommand({
+        TransactItems: [
+          ...order.items.map((item) => ({
+            Update: {
+              TableName: productsTable,
+              Key: { id: item.productId },
+              UpdateExpression: 'SET #stock = #stock + :quantity',
+              ConditionExpression: 'attribute_exists(id)',
+              ExpressionAttributeNames: { '#stock': 'stock' },
+              ExpressionAttributeValues: { ':quantity': item.quantity }
+            }
+          })),
+          {
+            Update: {
+              TableName: ordersTable,
+              Key: { id: orderId },
+              UpdateExpression:
+                'SET #status = :late, #paymentId = :paymentId, #paidAt = :paidAt',
+              ConditionExpression:
+                '#status = :pending AND #paymentExpiresAt <= :paidAt',
+              ExpressionAttributeNames: {
+                '#status': 'status',
+                '#paymentExpiresAt': 'paymentExpiresAt',
+                '#paymentId': 'paymentId',
+                '#paidAt': 'paidAt'
+              },
+              ExpressionAttributeValues: {
+                ':late': 'payment_late',
+                ':pending': 'pending_payment',
+                ':paymentId': paymentId,
+                ':paidAt': paidAtIso
+              }
+            }
+          }
+        ]
+      })
+    );
+  }
+
+  async expirePendingOrders(now: Date): Promise<number> {
+    const nowIso = now.toISOString();
+    let lastEvaluatedKey: Record<string, unknown> | undefined;
+    let expiredCount = 0;
+    do {
+      const page = await this.client.send(
+        new QueryCommand({
+          TableName: ordersTable,
+          IndexName: 'StatusExpiryIndex',
+          KeyConditionExpression: '#status = :pending AND #paymentExpiresAt <= :now',
+          ExpressionAttributeNames: {
+            '#status': 'status',
+            '#paymentExpiresAt': 'paymentExpiresAt'
+          },
+          ExpressionAttributeValues: {
+            ':pending': 'pending_payment',
+            ':now': nowIso
+          },
+          ExclusiveStartKey: lastEvaluatedKey
+        })
+      );
+      for (const rawOrder of page.Items ?? []) {
+        const order = orderSchema.parse(rawOrder);
+        const released = await this.expireOrder(order, nowIso);
+        if (released) expiredCount += 1;
+      }
+      lastEvaluatedKey = page.LastEvaluatedKey;
+    } while (lastEvaluatedKey);
+    return expiredCount;
+  }
+
+  private async expireOrder(order: Order, nowIso: string): Promise<boolean> {
+    try {
+      await this.client.send(
+        new TransactWriteCommand({
+          TransactItems: [
+            ...order.items.map((item) => ({
+              Update: {
+                TableName: productsTable,
+                Key: { id: item.productId },
+                UpdateExpression: 'SET #stock = #stock + :quantity',
+                ConditionExpression: 'attribute_exists(id)',
+                ExpressionAttributeNames: { '#stock': 'stock' },
+                ExpressionAttributeValues: { ':quantity': item.quantity }
+              }
+            })),
+            {
+              Update: {
+                TableName: ordersTable,
+                Key: { id: order.id },
+                UpdateExpression: 'SET #status = :expired, #expiredAt = :now',
+                ConditionExpression:
+                  '#status = :pending AND #paymentExpiresAt <= :now',
+                ExpressionAttributeNames: {
+                  '#status': 'status',
+                  '#paymentExpiresAt': 'paymentExpiresAt',
+                  '#expiredAt': 'expiredAt'
+                },
+                ExpressionAttributeValues: {
+                  ':expired': 'expired',
+                  ':pending': 'pending_payment',
+                  ':now': nowIso
+                }
+              }
+            }
+          ]
+        })
+      );
+      return true;
+    } catch (error: unknown) {
+      if (!(error instanceof TransactionCanceledException)) throw error;
+      const current = await this.getOrder(order.id);
+      if (
+        current?.status !== 'pending_payment' ||
+        current.paymentExpiresAt > nowIso
+      ) {
+        return false;
+      }
+      throw error;
+    }
+  }
+
+  async consumeReservationRateLimit(sourceIp: string, now: Date): Promise<boolean> {
+    const window = Math.floor(now.getTime() / (reservationWindowSeconds * 1000));
+    const windowEndsAt = (window + 1) * reservationWindowSeconds;
+    const key = createHash('sha256')
+      .update(`${sourceIp}:${window}`)
+      .digest('hex');
+    try {
+      await this.client.send(
+        new UpdateCommand({
+          TableName: rateLimitsTable,
+          Key: { key },
+          UpdateExpression:
+            'SET #requestCount = if_not_exists(#requestCount, :zero) + :one, #expiresAt = :expiresAt',
+          ConditionExpression:
+            'attribute_not_exists(#requestCount) OR #requestCount < :limit',
+          ExpressionAttributeNames: {
+            '#requestCount': 'requestCount',
+            '#expiresAt': 'expiresAt'
+          },
+          ExpressionAttributeValues: {
+            ':zero': 0,
+            ':one': 1,
+            ':limit': reservationRateLimit,
+            ':expiresAt': windowEndsAt + 24 * 60 * 60
+          }
+        })
+      );
+      return true;
+    } catch (error: unknown) {
+      if (error instanceof ConditionalCheckFailedException) return false;
       throw error;
     }
   }
@@ -159,11 +450,13 @@ export class DynamoDBFoodSaveRepository implements FoodSaveRepository {
     email: string,
     profile: UpdateUserProfile
   ): Promise<UserProfile> {
+    const acceptedAt = new Date().toISOString();
     const saved: UserProfile = {
       sub,
       email,
       ...profile,
-      updatedAt: new Date().toISOString()
+      privacyAcceptedAt: acceptedAt,
+      updatedAt: acceptedAt
     };
     await this.client.send(
       new PutCommand({
@@ -172,5 +465,120 @@ export class DynamoDBFoodSaveRepository implements FoodSaveRepository {
       })
     );
     return saved;
+  }
+
+  async getMerchantApplication(sub: string): Promise<MerchantApplication | undefined> {
+    const response = await this.client.send(
+      new GetCommand({
+        TableName: merchantsTable,
+        Key: { sub },
+        ConsistentRead: true
+      })
+    );
+    return response.Item
+      ? merchantApplicationSchema.parse(response.Item)
+      : undefined;
+  }
+
+  async createMerchantApplication(
+    sub: string,
+    input: MerchantApplicationRequest,
+    now: Date
+  ): Promise<MerchantApplication> {
+    const timestamp = now.toISOString();
+    const application: MerchantApplication = {
+      sub,
+      ...input,
+      status: 'pending_review',
+      createdAt: timestamp,
+      updatedAt: timestamp
+    };
+    try {
+      await this.client.send(
+        new PutCommand({
+          TableName: merchantsTable,
+          Item: application,
+          ConditionExpression: 'attribute_not_exists(sub)'
+        })
+      );
+      return application;
+    } catch (error: unknown) {
+      if (error instanceof ConditionalCheckFailedException) {
+        throw new MerchantApplicationAlreadyExistsError();
+      }
+      throw error;
+    }
+  }
+
+  async reviewMerchantApplication(
+    sub: string,
+    status: 'approved' | 'rejected',
+    reviewerSub: string,
+    now: Date
+  ): Promise<MerchantApplication | undefined> {
+    try {
+      const response = await this.client.send(
+        new UpdateCommand({
+          TableName: merchantsTable,
+          Key: { sub },
+          UpdateExpression:
+            'SET #status = :status, #updatedAt = :updatedAt, #reviewedBy = :reviewedBy',
+          ConditionExpression: '#status = :pending',
+          ExpressionAttributeNames: {
+            '#status': 'status',
+            '#updatedAt': 'updatedAt',
+            '#reviewedBy': 'reviewedBy'
+          },
+          ExpressionAttributeValues: {
+            ':status': status,
+            ':pending': 'pending_review',
+            ':updatedAt': now.toISOString(),
+            ':reviewedBy': reviewerSub
+          },
+          ReturnValues: 'ALL_NEW'
+        })
+      );
+      return response.Attributes
+        ? merchantApplicationSchema.parse(response.Attributes)
+        : undefined;
+    } catch (error: unknown) {
+      if (error instanceof ConditionalCheckFailedException) return undefined;
+      throw error;
+    }
+  }
+
+  async createMerchantProduct(product: Product): Promise<void> {
+    if (!product.merchantId) {
+      throw new MerchantNotApprovedError();
+    }
+    try {
+      await this.client.send(
+        new TransactWriteCommand({
+          TransactItems: [
+            {
+              ConditionCheck: {
+                TableName: merchantsTable,
+                Key: { sub: product.merchantId },
+                ConditionExpression: '#status = :approved',
+                ExpressionAttributeNames: { '#status': 'status' },
+                ExpressionAttributeValues: { ':approved': 'approved' }
+              }
+            },
+            {
+              Put: {
+                TableName: productsTable,
+                Item: product,
+                ConditionExpression: 'attribute_not_exists(id)'
+              }
+            }
+          ]
+        })
+      );
+    } catch (error: unknown) {
+      if (error instanceof TransactionCanceledException) {
+        throw new MerchantNotApprovedError();
+      }
+      throw error;
+    }
   }
 }

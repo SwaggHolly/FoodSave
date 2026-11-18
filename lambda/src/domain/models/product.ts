@@ -11,7 +11,9 @@ export const productSchema = z.object({
   discountPrice: z.number().int().positive(),
   expirationDate: z.iso.datetime(),
   stock: z.number().int().nonnegative(),
-  imageUrl: z.url()
+  imageUrl: z.url(),
+  merchantId: z.string().optional(),
+  imageKey: z.string().optional()
 }).refine((product) => product.discountPrice < product.originalPrice, {
   path: ['discountPrice'],
   message: 'El precio con descuento debe ser menor al precio original.'

@@ -1,17 +1,23 @@
 import assert from 'node:assert/strict';
-import { DynamoDBClient, TransactionCanceledException } from '@aws-sdk/client-dynamodb';
+import {
+  ConditionalCheckFailedException,
+  DynamoDBClient,
+  TransactionCanceledException
+} from '@aws-sdk/client-dynamodb';
 import {
   DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
   QueryCommand,
   ScanCommand,
-  TransactWriteCommand
+  TransactWriteCommand,
+  UpdateCommand
 } from '@aws-sdk/lib-dynamodb';
 import test from 'node:test';
 import type { Order } from '../../../domain/models/order.js';
 import type { Product } from '../../../domain/models/product.js';
 import type { UserProfile } from '../../../domain/models/user-profile.js';
+import { PRIVACY_POLICY_VERSION } from '../../../domain/models/privacy.js';
 import { InventoryConflictError } from '../../../domain/services/reserve-order.js';
 import { DynamoDBFoodSaveRepository } from './dynamodb-foodsave-repository.js';
 
@@ -126,7 +132,12 @@ test('writes inventory updates and the order in one DynamoDB transaction', async
     id: 'order-123',
     buyerName: 'Ana Pérez',
     buyerPhone: '+573001234567',
-    status: 'reserved',
+    privacyPolicyVersion: PRIVACY_POLICY_VERSION,
+    privacyAcceptedAt: new Date().toISOString(),
+    status: 'pending_payment',
+    statusSubscriptionToken: 'one-time-status-token',
+    statusSubscriptionTokenHash: 'a'.repeat(64),
+    paymentExpiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
     items: [
       {
         productId: product.id,
@@ -146,7 +157,8 @@ test('writes inventory updates and the order in one DynamoDB transaction', async
   assert.equal(transactions?.length, 2);
   assert.deepEqual(transactions?.[0]?.Update?.Key, { id: product.id });
   assert.equal(transactions?.[0]?.Update?.ConditionExpression, '#stock >= :quantity AND #expirationDate > :createdAt');
-  assert.deepEqual(transactions?.[1]?.Put?.Item, order);
+  const { statusSubscriptionToken: _token, ...persistedOrder } = order;
+  assert.deepEqual(transactions?.[1]?.Put?.Item, persistedOrder);
 });
 
 test('maps DynamoDB transaction cancellation to an inventory conflict', async (context) => {
@@ -161,7 +173,10 @@ test('maps DynamoDB transaction cancellation to an inventory conflict', async (c
     id: 'order-123',
     buyerName: 'Ana Pérez',
     buyerPhone: '+573001234567',
-    status: 'reserved',
+    privacyPolicyVersion: PRIVACY_POLICY_VERSION,
+    privacyAcceptedAt: new Date().toISOString(),
+    status: 'pending_payment',
+    paymentExpiresAt: new Date(Date.now() + 15 * 60 * 1000).toISOString(),
     items: [],
     total: 0,
     createdAt: new Date().toISOString()
@@ -171,6 +186,98 @@ test('maps DynamoDB transaction cancellation to an inventory conflict', async (c
     new DynamoDBFoodSaveRepository(client).createOrder(order),
     InventoryConflictError
   );
+});
+
+test('expires overdue orders and restores their reserved stock transactionally', async (context) => {
+  const client = createClient();
+  let release: TransactWriteCommand | undefined;
+  context.mock.method(client, 'send', async (command) => {
+    if (command instanceof QueryCommand) {
+      return {
+        Items: [
+          {
+            id: 'expired-order',
+            buyerName: 'Ana Pérez',
+            buyerPhone: '+573001234567',
+            privacyPolicyVersion: PRIVACY_POLICY_VERSION,
+            privacyAcceptedAt: '2026-11-18T12:00:00.000Z',
+            status: 'pending_payment',
+            items: [
+              {
+                productId: product.id,
+                title: product.title,
+                quantity: 2,
+                unitPrice: product.discountPrice,
+                lineTotal: product.discountPrice * 2
+              }
+            ],
+            total: product.discountPrice * 2,
+            createdAt: '2026-11-18T12:00:00.000Z',
+            paymentExpiresAt: '2026-11-18T12:15:00.000Z'
+          }
+        ]
+      };
+    }
+    assert.ok(command instanceof TransactWriteCommand);
+    release = command;
+    return { $metadata: { httpStatusCode: 200 } };
+  });
+
+  const expiredCount = await new DynamoDBFoodSaveRepository(client).expirePendingOrders(
+    new Date('2026-11-18T12:16:00.000Z')
+  );
+
+  assert.equal(expiredCount, 1);
+  const operations = release?.input.TransactItems;
+  assert.equal(operations?.length, 2);
+  assert.deepEqual(operations?.[0]?.Update?.Key, { id: product.id });
+  assert.equal(operations?.[0]?.Update?.UpdateExpression, 'SET #stock = #stock + :quantity');
+  assert.equal(
+    operations?.[1]?.Update?.ConditionExpression,
+    '#status = :pending AND #paymentExpiresAt <= :now'
+  );
+});
+
+test('limits reservations atomically without persisting the source IP', async (context) => {
+  const client = createClient();
+  let update: UpdateCommand | undefined;
+  context.mock.method(client, 'send', async (command) => {
+    assert.ok(command instanceof UpdateCommand);
+    update = command;
+    return { $metadata: { httpStatusCode: 200 } };
+  });
+
+  const allowed = await new DynamoDBFoodSaveRepository(client).consumeReservationRateLimit(
+    '203.0.113.42',
+    new Date('2026-11-18T12:00:00.000Z')
+  );
+
+  assert.equal(allowed, true);
+  assert.match(String(update?.input.Key?.['key']), /^[a-f0-9]{64}$/);
+  assert.notEqual(update?.input.Key?.['key'], '203.0.113.42');
+  assert.equal(update?.input.ConditionExpression, 'attribute_not_exists(#requestCount) OR #requestCount < :limit');
+  assert.equal(update?.input.ExpressionAttributeValues?.[':limit'], 5);
+  assert.equal(
+    update?.input.ExpressionAttributeValues?.[':expiresAt'],
+    Math.floor(Date.parse('2026-11-18T12:00:00.000Z') / 1000) + 24 * 60 * 60 + 10 * 60
+  );
+});
+
+test('returns a rejected result when the DynamoDB reservation limit is reached', async (context) => {
+  const client = createClient();
+  context.mock.method(client, 'send', async () => {
+    throw new ConditionalCheckFailedException({
+      message: 'Rate limit reached',
+      $metadata: { httpStatusCode: 400 }
+    });
+  });
+
+  const allowed = await new DynamoDBFoodSaveRepository(client).consumeReservationRateLimit(
+    '203.0.113.42',
+    new Date('2026-11-18T12:00:00.000Z')
+  );
+
+  assert.equal(allowed, false);
 });
 
 test('reads and stores user profiles by Cognito subject', async (context) => {
@@ -204,4 +311,55 @@ test('reads and stores user profiles by Cognito subject', async (context) => {
   assert.equal(beforeSave, undefined);
   assert.deepEqual(saved, afterSave);
   assert.equal(saved.email, profile.email);
+});
+
+test('stores merchant applications as pending review with a conditional write', async (context) => {
+  const client = createClient();
+  let write: PutCommand | undefined;
+  context.mock.method(client, 'send', async (command) => {
+    assert.ok(command instanceof PutCommand);
+    write = command;
+    return { $metadata: { httpStatusCode: 200 } };
+  });
+  const application = await new DynamoDBFoodSaveRepository(client).createMerchantApplication(
+    'merchant-sub',
+    {
+      storeName: 'Fruver del barrio',
+      ownerName: 'Ana Pérez',
+      contactEmail: 'tienda@example.com',
+      phone: '+573001234567',
+      city: 'Bogotá',
+      address: 'Carrera 7 # 45-10',
+      description: ''
+    },
+    new Date('2026-11-18T12:00:00.000Z')
+  );
+
+  assert.equal(application.status, 'pending_review');
+  assert.equal(application.sub, 'merchant-sub');
+  assert.equal(write?.input.ConditionExpression, 'attribute_not_exists(sub)');
+});
+
+test('publishes a merchant product only inside an approved-merchant transaction', async (context) => {
+  const client = createClient();
+  let transaction: TransactWriteCommand | undefined;
+  context.mock.method(client, 'send', async (command) => {
+    assert.ok(command instanceof TransactWriteCommand);
+    transaction = command;
+    return { $metadata: { httpStatusCode: 200 } };
+  });
+  const merchantProduct: Product = {
+    ...product,
+    id: 'merchant-product-1',
+    merchantId: 'merchant-sub',
+    imageKey: 'merchant-images/merchant-sub/image.webp'
+  };
+
+  await new DynamoDBFoodSaveRepository(client).createMerchantProduct(merchantProduct);
+
+  const operations = transaction?.input.TransactItems;
+  assert.equal(operations?.length, 2);
+  assert.equal(operations?.[0]?.ConditionCheck?.ConditionExpression, '#status = :approved');
+  assert.deepEqual(operations?.[0]?.ConditionCheck?.Key, { sub: 'merchant-sub' });
+  assert.deepEqual(operations?.[1]?.Put?.Item, merchantProduct);
 });

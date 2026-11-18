@@ -12,6 +12,8 @@ export type OrderDelivery =
 export interface CreateOrderRequest {
   buyerName: string;
   buyerPhone: string;
+  buyerEmail?: string;
+  privacyPolicyVersion: string;
   delivery?: OrderDelivery;
   items: Array<{
     productId: string;
@@ -21,7 +23,10 @@ export interface CreateOrderRequest {
 
 export interface OrderReceipt {
   orderId: string;
-  status: 'reserved';
+  status: 'pending_payment';
   total: number;
   createdAt: string;
+  paymentExpiresAt: string;
+  statusSubscriptionToken: string;
+  checkoutUrl: string;
 }

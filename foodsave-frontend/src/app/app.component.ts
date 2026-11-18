@@ -5,16 +5,27 @@ import {
   ChangeDetectorRef,
   Component,
   Inject,
+  OnDestroy,
   PLATFORM_ID
 } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import localeEsCo from '@angular/common/locales/es-CO';
 import { filter, take } from 'rxjs';
 import { CreateOrderRequest, OrderDelivery, OrderReceipt } from './models/order.model';
+import { PRIVACY_POLICY_VERSION } from './models/privacy-policy';
 import { Product } from './models/product.model';
+import type {
+  MerchantApplicationRequest,
+  MerchantProductRequest
+} from './models/merchant.model';
 import { UpdateUserProfile } from './models/user-profile.model';
+import { PrivacyPolicyComponent } from './components/privacy-policy/privacy-policy.component';
 import { AccountService } from './services/account.service';
-import { FoodsaveService } from './services/foodsave.service';
+import {
+  FoodsaveService,
+  OrderStatusUpdate
+} from './services/foodsave.service';
+import { Subscription } from 'rxjs';
 
 registerLocaleData(localeEsCo, 'es-CO');
 
@@ -29,16 +40,16 @@ interface SavedCartItem {
 }
 
 type CategoryFilter = 'todos' | Product['category'];
-type AccountMode = 'signup' | 'confirm' | 'signin' | 'profile';
+type AccountMode = 'signup' | 'confirm' | 'signin' | 'profile' | 'merchant';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [CommonModule, FormsModule],
+  imports: [CommonModule, FormsModule, PrivacyPolicyComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
 })
-export class AppComponent {
+export class AppComponent implements OnDestroy {
   products: Product[] = [];
   cartItems: CartItem[] = [];
   searchTerm = '';
@@ -50,15 +61,35 @@ export class AppComponent {
   accountEmail = '';
   accountPhone = '';
   accountPassword = '';
+  accountPrivacyAccepted = false;
+  privacyPolicyOpen = false;
   confirmationCode = '';
   accountError = '';
   accountMessage = '';
+  merchantStoreName = '';
+  merchantOwnerName = '';
+  merchantEmail = '';
+  merchantPhone = '';
+  merchantCity = '';
+  merchantAddress = '';
+  merchantDescription = '';
+  merchantProductTitle = '';
+  merchantProductCategory: Product['category'] = 'frutas';
+  merchantOriginalPrice = 10000;
+  merchantDiscountPrice = 4000;
+  merchantExpirationDate = '';
+  merchantProductStock = 1;
+  merchantImageFile: File | null = null;
+  merchantLoading = false;
   isSubmittingAccount = false;
   notice = '';
+  paymentStatusMessage = '';
   isLoadingProducts = true;
   catalogError = '';
   buyerName = '';
   buyerPhone = '';
+  buyerEmail = '';
+  orderPrivacyAccepted = false;
   deliveryMethod: OrderDelivery['method'] = 'pickup';
   deliveryCity = '';
   deliveryZone = '';
@@ -68,6 +99,9 @@ export class AppComponent {
   isSubmittingOrder = false;
   private readonly storageKey = 'foodsave-cart';
   private noticeTimeout?: ReturnType<typeof setTimeout>;
+  private paymentStatusSubscription?: Subscription;
+  private paymentStatus?: OrderStatusUpdate['status'];
+  private paymentOrderId?: string;
 
   constructor(
     private readonly foodSave: FoodsaveService,
@@ -77,6 +111,7 @@ export class AppComponent {
     @Inject(PLATFORM_ID) private readonly platformId: object
   ) {
     if (isPlatformBrowser(this.platformId)) {
+      this.initializePaymentStatus();
       void this.restoreAccount();
       this.applicationRef.isStable
         .pipe(
@@ -85,6 +120,11 @@ export class AppComponent {
         )
         .subscribe(() => this.loadProducts());
     }
+  }
+
+  ngOnDestroy(): void {
+    this.paymentStatusSubscription?.unsubscribe();
+    if (this.noticeTimeout) clearTimeout(this.noticeTimeout);
   }
 
   reloadProducts(): void {
@@ -101,6 +141,10 @@ export class AppComponent {
       this.accountName = profile?.name ?? '';
       this.accountEmail = profile?.email ?? this.account.user()?.email ?? '';
       this.accountPhone = profile?.phone ?? '';
+      this.merchantOwnerName = this.accountName;
+      this.merchantEmail = this.accountEmail;
+      this.merchantPhone = this.accountPhone;
+      void this.refreshMerchantApplication();
     } else {
       this.accountMode = 'signup';
     }
@@ -115,13 +159,18 @@ export class AppComponent {
   async submitRegistration(): Promise<void> {
     this.accountError = '';
     this.accountMessage = '';
+    if (!this.accountPrivacyAccepted) {
+      this.accountError = 'Debes aceptar la política de privacidad para crear tu cuenta.';
+      return;
+    }
     this.isSubmittingAccount = true;
     try {
       await this.account.register({
         name: this.accountName,
         email: this.accountEmail,
         phone: this.accountPhone,
-        password: this.accountPassword
+        password: this.accountPassword,
+        privacyPolicyVersion: PRIVACY_POLICY_VERSION
       });
       this.accountMode = 'confirm';
       this.accountMessage = 'Te enviamos un código de verificación a tu correo.';
@@ -168,14 +217,19 @@ export class AppComponent {
   async submitSignIn(): Promise<void> {
     this.accountError = '';
     this.accountMessage = '';
+    if (!this.accountPrivacyAccepted) {
+      this.accountError = 'Debes aceptar la política de privacidad para continuar.';
+      return;
+    }
     this.isSubmittingAccount = true;
     try {
       const profile = await this.account.signInWithEmail({
         email: this.accountEmail,
         password: this.accountPassword
-      });
+      }, PRIVACY_POLICY_VERSION);
       this.buyerName = profile.name;
       this.buyerPhone = profile.phone;
+      this.buyerEmail = profile.email;
       this.accountOpen = false;
       this.accountPassword = '';
       this.showNotice(`¡Bienvenido, ${profile.name}!`);
@@ -200,13 +254,82 @@ export class AppComponent {
     try {
       const profile: UpdateUserProfile = {
         name: this.accountName.trim(),
-        phone: this.accountPhone.trim()
+        phone: this.accountPhone.trim(),
+        privacyPolicyVersion: PRIVACY_POLICY_VERSION
       };
       const saved = await this.account.saveProfile(profile);
       this.buyerName = saved.name;
       this.buyerPhone = saved.phone;
       this.accountOpen = false;
       this.showNotice('Tus datos se guardaron correctamente.');
+    } catch (error: unknown) {
+      this.accountError = this.accountErrorMessage(error);
+    } finally {
+      this.isSubmittingAccount = false;
+      this.changeDetector.markForCheck();
+    }
+  }
+
+  async submitMerchantApplication(): Promise<void> {
+    this.accountError = '';
+    this.accountMessage = '';
+    this.isSubmittingAccount = true;
+    try {
+      const request: MerchantApplicationRequest = {
+        storeName: this.merchantStoreName.trim(),
+        ownerName: this.merchantOwnerName.trim(),
+        contactEmail: this.merchantEmail.trim(),
+        phone: this.merchantPhone.trim(),
+        city: this.merchantCity.trim(),
+        address: this.merchantAddress.trim(),
+        description: this.merchantDescription.trim()
+      };
+      await this.account.submitMerchantApplication(request);
+      this.accountMessage = 'Solicitud enviada. Te avisaremos cuando el equipo la revise.';
+    } catch (error: unknown) {
+      this.accountError = this.accountErrorMessage(error);
+    } finally {
+      this.isSubmittingAccount = false;
+      this.changeDetector.markForCheck();
+    }
+  }
+
+  onMerchantImageSelected(event: Event): void {
+    const input = event.target;
+    this.merchantImageFile =
+      input instanceof HTMLInputElement ? input.files?.[0] ?? null : null;
+  }
+
+  async submitMerchantProduct(): Promise<void> {
+    this.accountError = '';
+    this.accountMessage = '';
+    if (!this.merchantImageFile) {
+      this.accountError = 'Selecciona una imagen del producto.';
+      return;
+    }
+    if (this.merchantImageFile.size > 5 * 1024 * 1024) {
+      this.accountError = 'La imagen no puede superar 5 MB.';
+      return;
+    }
+    this.isSubmittingAccount = true;
+    try {
+      const imageKey = await this.account.uploadMerchantImage(this.merchantImageFile);
+      const product: MerchantProductRequest = {
+        title: this.merchantProductTitle.trim(),
+        category: this.merchantProductCategory,
+        originalPrice: this.merchantOriginalPrice,
+        discountPrice: this.merchantDiscountPrice,
+        expirationDate: new Date(
+          `${this.merchantExpirationDate}T23:59:59.000Z`
+        ).toISOString(),
+        stock: this.merchantProductStock,
+        imageKey
+      };
+      await this.account.createMerchantProduct(product);
+      this.accountMessage = 'Producto publicado correctamente.';
+      this.merchantProductTitle = '';
+      this.merchantImageFile = null;
+      this.showNotice('Tu producto ya aparece en el catálogo.');
     } catch (error: unknown) {
       this.accountError = this.accountErrorMessage(error);
     } finally {
@@ -222,6 +345,7 @@ export class AppComponent {
       await this.account.signOutCurrentUser();
       this.buyerName = '';
       this.buyerPhone = '';
+      this.buyerEmail = '';
       this.accountOpen = false;
       this.showNotice('Cerraste sesión.');
     } catch (error: unknown) {
@@ -230,6 +354,98 @@ export class AppComponent {
       this.isSubmittingAccount = false;
       this.changeDetector.markForCheck();
     }
+  }
+
+  private initializePaymentStatus(): void {
+    const url = new URL(window.location.href);
+    const paymentReturn = url.searchParams.get('payment');
+    const orderId = url.searchParams.get('order_id');
+    if (!paymentReturn || !orderId) return;
+
+    url.searchParams.delete('payment');
+    url.searchParams.delete('order_id');
+    window.history.replaceState({}, '', url);
+
+    let token: string | null;
+    try {
+      token = sessionStorage.getItem(`foodsave-order-${orderId}`);
+    } catch (error: unknown) {
+      console.error('No se pudo recuperar el token temporal del pedido.', error);
+      this.paymentStatusMessage += ' El navegador no permite recuperar el token temporal.';
+      return;
+    }
+    this.paymentOrderId = orderId;
+    this.paymentStatusMessage =
+      paymentReturn === 'success'
+        ? 'Mercado Pago indicó que el pago se completó. Estamos verificando la confirmación.'
+        : paymentReturn === 'failure'
+          ? 'El pago no se completó. Consulta el estado de tu pedido antes de volver a intentarlo.'
+          : 'El pago está pendiente. Te mostraremos el cambio cuando Mercado Pago lo confirme.';
+    if (!token) {
+      this.paymentStatusMessage += ' No encontramos el token temporal para consultar esta reserva.';
+      return;
+    }
+
+    this.paymentStatusSubscription = this.foodSave
+      .watchOrderStatus(orderId, token, () => {
+        this.foodSave.getOrderStatus(orderId, token).subscribe({
+          next: (status) => this.updatePaymentStatus(status),
+          error: (error: unknown) => {
+            console.error('No se pudo consultar el estado inicial del pedido.', error);
+          }
+        });
+      })
+      .subscribe({
+        next: (status) => this.updatePaymentStatus(status),
+        error: (error: unknown) => {
+          console.error('No se pudo conectar al seguimiento del pedido.', error);
+          this.paymentStatusMessage =
+            'No pudimos conectarnos para actualizar el pedido. La confirmación del pago no depende de esta pantalla.';
+          this.changeDetector.markForCheck();
+        }
+      });
+  }
+
+  private updatePaymentStatus(update: OrderStatusUpdate): void {
+    const statusRank: Record<OrderStatusUpdate['status'], number> = {
+      pending_payment: 0,
+      expired: 1,
+      paid: 2,
+      payment_late: 3
+    };
+    if (
+      this.paymentStatus &&
+      statusRank[update.status] < statusRank[this.paymentStatus]
+    ) {
+      return;
+    }
+    this.paymentStatus = update.status;
+    switch (update.status) {
+      case 'paid':
+        this.paymentStatusMessage = '¡Pago confirmado! Tu pedido quedó reservado.';
+        break;
+      case 'expired':
+        this.paymentStatusMessage =
+          'Venció el tiempo de pago y las unidades volvieron al inventario.';
+        break;
+      case 'payment_late':
+        this.paymentStatusMessage =
+          'El pago llegó después de vencer la reserva. Contacta a FoodSave para revisar el caso.';
+        break;
+      case 'pending_payment':
+        this.paymentStatusMessage =
+          'Tu reserva sigue pendiente de confirmación. Mantendremos las unidades por 15 minutos.';
+        return;
+    }
+    this.paymentStatusSubscription?.unsubscribe();
+    if (this.paymentOrderId) {
+      try {
+        sessionStorage.removeItem(`foodsave-order-${this.paymentOrderId}`);
+      } catch (error: unknown) {
+        console.error('No se pudo eliminar el token temporal del pedido.', error);
+      }
+    }
+    this.changeDetector.markForCheck();
   }
 
   private loadProducts(): void {
@@ -256,11 +472,33 @@ export class AppComponent {
       if (profile) {
         this.buyerName = profile.name;
         this.buyerPhone = profile.phone;
+        this.buyerEmail = profile.email;
+        await this.refreshMerchantApplication();
       }
     } catch (error: unknown) {
       console.error('No se pudo recuperar la cuenta de FoodSave.', error);
+      if (error instanceof Error && error.message.includes('política de privacidad vigente')) {
+        this.accountMode = 'signin';
+        this.accountOpen = true;
+        this.accountError = error.message;
+        this.changeDetector.markForCheck();
+        return;
+      }
       this.showNotice('No se pudo recuperar tu cuenta. Intenta iniciar sesión de nuevo.');
     } finally {
+      this.changeDetector.markForCheck();
+    }
+  }
+
+  private async refreshMerchantApplication(): Promise<void> {
+    this.merchantLoading = true;
+    try {
+      await this.account.loadMerchantApplication();
+    } catch (error: unknown) {
+      console.error('No se pudo consultar la solicitud de comercio.', error);
+      this.accountError = this.accountErrorMessage(error);
+    } finally {
+      this.merchantLoading = false;
       this.changeDetector.markForCheck();
     }
   }
@@ -335,6 +573,15 @@ export class AppComponent {
       this.showNotice('Completa tu nombre y teléfono para reservar el pedido.');
       return;
     }
+    if (!this.orderPrivacyAccepted) {
+      this.showNotice('Acepta la política de privacidad para continuar con la reserva.');
+      return;
+    }
+    const buyerEmail = this.buyerEmail.trim();
+    if (buyerEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(buyerEmail)) {
+      this.showNotice('Ingresa un correo electrónico válido o deja el campo vacío.');
+      return;
+    }
     if (
       this.deliveryMethod === 'delivery' &&
       (!this.deliveryCity.trim() ||
@@ -349,6 +596,8 @@ export class AppComponent {
     const request: CreateOrderRequest = {
       buyerName: this.buyerName.trim(),
       buyerPhone: this.buyerPhone.trim(),
+      ...(buyerEmail ? { buyerEmail } : {}),
+      privacyPolicyVersion: PRIVACY_POLICY_VERSION,
       delivery:
         this.deliveryMethod === 'pickup'
           ? { method: 'pickup' }
@@ -378,9 +627,18 @@ export class AppComponent {
         this.loadProducts();
         this.showNotice(
           this.deliveryMethod === 'delivery'
-            ? `Reserva ${receipt.orderId} creada. La tienda confirmará cobertura, costo y tiempo del domicilio. Esta versión no procesa pagos.`
-            : `Reserva ${receipt.orderId} creada. La tienda coordinará contigo la recogida; esta versión no procesa pagos.`
+            ? `Reserva ${receipt.orderId} creada. Mercado Pago retendrá las unidades por 15 minutos. La tienda confirmará el domicilio.`
+            : `Reserva ${receipt.orderId} creada. Completa el pago en Mercado Pago dentro de 15 minutos.`
         );
+        try {
+          sessionStorage.setItem(
+            `foodsave-order-${receipt.orderId}`,
+            receipt.statusSubscriptionToken
+          );
+        } catch (error: unknown) {
+          console.error('No se pudo guardar el token temporal del pedido.', error);
+        }
+        this.navigateToPayment(receipt.checkoutUrl);
         this.changeDetector.markForCheck();
       },
       error: (error: unknown) => {
@@ -408,6 +666,12 @@ export class AppComponent {
     if (event.target instanceof HTMLImageElement) {
       event.target.src =
         'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 640 420%22%3E%3Crect width=%22640%22 height=%22420%22 fill=%22%23edf3e8%22/%3E%3Ctext x=%2250%25%22 y=%2253%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2280%22%3E%F0%9F%A5%AC%3C/text%3E%3C/svg%3E';
+    }
+  }
+
+  navigateToPayment(checkoutUrl: string): void {
+    if (isPlatformBrowser(this.platformId)) {
+      window.location.assign(checkoutUrl);
     }
   }
 

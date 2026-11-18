@@ -1,5 +1,9 @@
 ADR 001: Selección de Estilo Arquitectónico
 
+> Estado actual: esta fue la propuesta inicial. El frontend evolucionó a Angular y
+> la decisión de backend con Express y MongoDB fue reemplazada por el ADR004. Las
+> decisiones posteriores están registradas en el ADR005.
+
 FoodSave es una plataforma web que conecta comercios con consumidores para reducir el desperdicio de alimentos. El sistema debe:
 •	Escalar con facilidad a medida que aumente el número de usuarios y comercios.
 •	Separar responsabilidades entre interfaz, lógica de negocio y persistencia.
@@ -45,4 +49,5 @@ Impacto en el proyecto
 •	Facilita agregar nuevas funcionalidades como mapas, pagos en línea, notificaciones push e inteligencia artificial.
 •	Establece una base sólida para futuras versiones con microservicios o arquitectura orientada a eventos.
 Estado
-•	Pendiente / En pruebas – Esta decisión está siendo evaluada en la primera versión del proyecto. Se confirmará su aceptación definitiva tras las pruebas funcionales y de despliegue.
+• Supersedido para la arquitectura vigente por los ADR004 y ADR005. Se conserva
+  como registro histórico de las alternativas consideradas inicialmente.

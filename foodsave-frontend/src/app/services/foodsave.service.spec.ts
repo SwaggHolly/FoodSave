@@ -9,6 +9,7 @@ import {
 import { FoodsaveService } from './foodsave.service';
 import { environment } from '../../environments/environment';
 import { Product, ProtocolStatus } from '../models/product.model';
+import { PRIVACY_POLICY_VERSION } from '../models/privacy-policy';
 
 const product: Product = {
   id: '1',
@@ -55,6 +56,7 @@ describe('FoodsaveService', () => {
     const order = {
       buyerName: 'Ana Pérez',
       buyerPhone: '+573001234567',
+      privacyPolicyVersion: PRIVACY_POLICY_VERSION,
       items: [{ productId: '1', quantity: 2 }]
     };
     let orderId: string | undefined;
@@ -65,12 +67,39 @@ describe('FoodsaveService', () => {
     expect(request.request.body).toEqual(order);
     request.flush({
       orderId: 'order-123',
-      status: 'reserved',
+      status: 'pending_payment',
       total: 9600,
-      createdAt: '2026-11-17T12:00:00.000Z'
+      createdAt: '2026-11-17T12:00:00.000Z',
+      paymentExpiresAt: '2026-11-17T12:15:00.000Z',
+      statusSubscriptionToken: 'private-token',
+      checkoutUrl: 'https://mercadopago.example/checkout'
     });
 
     expect(orderId).toBe('order-123');
+  });
+
+  it('uses the private order token to retrieve payment status', () => {
+    let response: unknown;
+    service.getOrderStatus('order-123', 'private-token').subscribe((status) => {
+      response = status;
+    });
+
+    const request = httpController.expectOne(
+      `${environment.apiBaseUrl}/orders/order-123/status`
+    );
+    expect(request.request.method).toBe('GET');
+    expect(request.request.headers.get('x-order-token')).toBe('private-token');
+    request.flush({
+      orderId: 'order-123',
+      status: 'paid',
+      paymentExpiresAt: '2026-11-17T12:15:00.000Z'
+    });
+
+    expect(response).toEqual({
+      orderId: 'order-123',
+      status: 'paid',
+      paymentExpiresAt: '2026-11-17T12:15:00.000Z'
+    });
   });
 
   it('reports the configured protocol status list', () => {

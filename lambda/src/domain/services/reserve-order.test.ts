@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import test from 'node:test';
 import type { Order } from '../models/order.js';
 import type { Product } from '../models/product.js';
 import type { FoodSaveRepository } from '../../ports/output/foodsave-repository.js';
+import { PRIVACY_POLICY_VERSION } from '../models/privacy.js';
 import {
   InventoryConflictError,
   ProductNotFoundError,
@@ -30,13 +32,28 @@ function createRepository(availableProducts: Product[]) {
     createOrder: async (order) => {
       createdOrders.push(order);
     },
+    consumeReservationRateLimit: async () => true,
+    getOrder: async () => undefined,
+    attachPaymentPreference: async () => undefined,
+    markOrderPaid: async () => true,
+    expirePendingOrders: async () => 0,
     getUserProfile: async () => undefined,
     saveUserProfile: async (sub, email, profile) => ({
       sub,
       email,
       ...profile,
       updatedAt: new Date().toISOString()
-    })
+    }),
+    getMerchantApplication: async () => undefined,
+    createMerchantApplication: async (sub, input, now) => ({
+      sub,
+      ...input,
+      status: 'pending_review',
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString()
+    }),
+    reviewMerchantApplication: async () => undefined,
+    createMerchantProduct: async () => undefined
   };
   return { repository, createdOrders };
 }
@@ -44,6 +61,7 @@ function createRepository(availableProducts: Product[]) {
 const request = {
   buyerName: 'Ana Pérez',
   buyerPhone: '+573001234567',
+  privacyPolicyVersion: PRIVACY_POLICY_VERSION,
   items: [{ productId: 'apple-1', quantity: 2 }]
 };
 
@@ -56,16 +74,26 @@ test('uses the server price and records the reservation atomically', async () =>
   );
 
   const receipt = await service.execute(request);
+  const { statusSubscriptionToken, ...receiptDetails } = receipt;
 
-  assert.deepEqual(receipt, {
+  assert.deepEqual(receiptDetails, {
     orderId: 'order-123',
-    status: 'reserved',
+    status: 'pending_payment',
     total: 9600,
-    createdAt: '2026-11-17T12:00:00.000Z'
+    createdAt: '2026-11-17T12:00:00.000Z',
+    paymentExpiresAt: '2026-11-17T12:15:00.000Z'
   });
+  assert.match(statusSubscriptionToken, /^[A-Za-z0-9_-]{43}$/);
   assert.equal(createdOrders.length, 1);
   assert.equal(createdOrders[0]?.items[0]?.unitPrice, 4800);
   assert.equal(createdOrders[0]?.items[0]?.quantity, 2);
+  assert.equal(createdOrders[0]?.privacyPolicyVersion, PRIVACY_POLICY_VERSION);
+  assert.equal(createdOrders[0]?.privacyAcceptedAt, '2026-11-17T12:00:00.000Z');
+  assert.equal(createdOrders[0]?.paymentExpiresAt, '2026-11-17T12:15:00.000Z');
+  assert.equal(
+    createdOrders[0]?.statusSubscriptionTokenHash,
+    createHash('sha256').update(statusSubscriptionToken).digest('hex')
+  );
   assert.deepEqual(createdOrders[0]?.delivery, { method: 'pickup' });
 });
 

@@ -1,0 +1,75 @@
+@if (open) {
+  <div class="privacy-backdrop" (click)="closed.emit()" (keydown.escape)="closed.emit()">
+    <section
+      class="privacy-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="privacy-title"
+      (click)="$event.stopPropagation()"
+    >
+      <header class="privacy-header">
+        <div>
+          <span class="eyebrow">TRANSPARENCIA Y PROTECCIÓN DE DATOS</span>
+          <h2 id="privacy-title">Política de privacidad</h2>
+        </div>
+        <button type="button" class="close-button" aria-label="Cerrar política" (click)="closed.emit()">×</button>
+      </header>
+      <div class="privacy-draft-warning" role="note">
+        <strong>Borrador para revisión legal.</strong>
+        Completa los datos del responsable y el canal de atención antes de publicar o recoger datos reales.
+      </div>
+      <div class="privacy-content">
+        <p><strong>Versión:</strong> 2026-11-18</p>
+        <h3>Responsable del tratamiento</h3>
+        <p>
+          [RAZÓN SOCIAL O NOMBRE DEL RESPONSABLE], NIT [NIT], con domicilio en [CIUDAD, COLOMBIA].
+          Contacto de privacidad: [CORREO Y DIRECCIÓN DE ATENCIÓN]. Estos datos deben completarse
+          antes de habilitar el servicio al público.
+        </p>
+        <h3>Datos y finalidades</h3>
+        <p>
+          FoodSave trata los datos de cuenta (nombre, correo y teléfono), los datos que entregas para
+          una reserva y su entrega (productos, cantidades, dirección e instrucciones), y los datos
+          necesarios para atender solicitudes, proteger el servicio y cumplir obligaciones legales.
+          El correo de una compra como invitado es opcional. No introduzcas datos sensibles ni
+          información de terceros en las instrucciones de entrega.
+        </p>
+        <h3>Seguridad y conservación</h3>
+        <p>
+          Los datos de cuenta se gestionan con Amazon Cognito y la información de reservas se guarda
+          en los servicios de AWS configurados por FoodSave. Para limitar reservas automatizadas,
+          se conserva durante un máximo de 24 horas un identificador hash derivado de la dirección IP;
+          no se guarda la dirección IP en ese registro. El carrito se almacena localmente en tu
+          navegador. Los demás datos se conservan solo durante el tiempo necesario para las
+          finalidades descritas y los plazos legales aplicables; el responsable debe definir y
+          documentar esos plazos antes del lanzamiento.
+        </p>
+        <h3>Encargados y transferencias</h3>
+        <p>
+          Los proveedores tecnológicos pueden procesar datos para alojar la aplicación, autenticar
+          usuarios, almacenar reservas y proteger la plataforma. Los proveedores de pago, correo,
+          imágenes y notificaciones solo deben activarse cuando estén configurados y exista una
+          base contractual y legal apropiada. La ubicación de procesamiento y cualquier transferencia
+          internacional deben confirmarse con el responsable antes de producción.
+        </p>
+        <h3>Tus derechos</h3>
+        <p>
+          De acuerdo con la Ley 1581 de 2012 y sus normas reglamentarias, puedes solicitar acceso,
+          actualización, rectificación o supresión, y presentar consultas o reclamos mediante
+          [CANAL DE PRIVACIDAD]. También puedes acudir a la Superintendencia de Industria y Comercio
+          cuando corresponda. La solicitud y los plazos deben tramitarse conforme a la normativa
+          aplicable.
+        </p>
+        <h3>Autorización y cambios</h3>
+        <p>
+          Al marcar la casilla de aceptación autorizas el tratamiento descrito en este borrador.
+          FoodSave debe conservar evidencia de la versión y fecha de aceptación. Si cambia la
+          política, se solicitará una nueva aceptación cuando sea necesario.
+        </p>
+      </div>
+      <footer class="privacy-footer">
+        <button type="button" class="primary-button" (click)="closed.emit()">Entendido</button>
+      </footer>
+    </section>
+  </div>
+}

@@ -5,9 +5,11 @@ declare const process: {
 };
 import {
   CreateTableCommand,
+  DescribeTableCommand,
   DynamoDBClient,
   ListTablesCommand,
   ResourceInUseException,
+  UpdateTableCommand,
   waitUntilTableExists
 } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
@@ -32,6 +34,8 @@ const documentClient = DynamoDBDocumentClient.from(client);
 const productsTable = process.env.PRODUCTS_TABLE ?? 'FoodSaveProducts';
 const ordersTable = process.env.ORDERS_TABLE ?? 'FoodSaveOrders';
 const usersTable = process.env.USERS_TABLE ?? 'FoodSaveUsers';
+const rateLimitsTable = process.env.RATE_LIMITS_TABLE ?? 'FoodSaveRateLimits';
+const merchantsTable = process.env.MERCHANTS_TABLE ?? 'FoodSaveMerchants';
 
 async function waitForLocalDatabase(): Promise<void> {
   if (!isLocal) return;
@@ -66,6 +70,50 @@ async function createTableIfNeeded(
   );
 }
 
+async function ensureLocalOrderExpiryIndex(): Promise<void> {
+  const table = await client.send(
+    new DescribeTableCommand({ TableName: ordersTable })
+  );
+  const expiryIndex = table.Table?.GlobalSecondaryIndexes?.find(
+    (index) => index.IndexName === 'StatusExpiryIndex'
+  );
+  if (!expiryIndex) {
+    await client.send(
+      new UpdateTableCommand({
+        TableName: ordersTable,
+        AttributeDefinitions: [
+          { AttributeName: 'status', AttributeType: 'S' },
+          { AttributeName: 'paymentExpiresAt', AttributeType: 'S' }
+        ],
+        GlobalSecondaryIndexUpdates: [
+          {
+            Create: {
+              IndexName: 'StatusExpiryIndex',
+              KeySchema: [
+                { AttributeName: 'status', KeyType: 'HASH' },
+                { AttributeName: 'paymentExpiresAt', KeyType: 'RANGE' }
+              ],
+              Projection: { ProjectionType: 'ALL' }
+            }
+          }
+        ]
+      })
+    );
+  }
+
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    const currentTable = await client.send(
+      new DescribeTableCommand({ TableName: ordersTable })
+    );
+    const currentIndex = currentTable.Table?.GlobalSecondaryIndexes?.find(
+      (index) => index.IndexName === 'StatusExpiryIndex'
+    );
+    if (currentIndex?.IndexStatus === 'ACTIVE') return;
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  throw new Error(`El índice StatusExpiryIndex de ${ordersTable} no quedó activo.`);
+}
+
 async function ensureTables(): Promise<void> {
   await createTableIfNeeded(
     new CreateTableCommand({
@@ -94,11 +142,26 @@ async function ensureTables(): Promise<void> {
     new CreateTableCommand({
       TableName: ordersTable,
       BillingMode: 'PAY_PER_REQUEST',
-      AttributeDefinitions: [{ AttributeName: 'id', AttributeType: 'S' }],
-      KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }]
+      AttributeDefinitions: [
+        { AttributeName: 'id', AttributeType: 'S' },
+        { AttributeName: 'status', AttributeType: 'S' },
+        { AttributeName: 'paymentExpiresAt', AttributeType: 'S' }
+      ],
+      KeySchema: [{ AttributeName: 'id', KeyType: 'HASH' }],
+      GlobalSecondaryIndexes: [
+        {
+          IndexName: 'StatusExpiryIndex',
+          KeySchema: [
+            { AttributeName: 'status', KeyType: 'HASH' },
+            { AttributeName: 'paymentExpiresAt', KeyType: 'RANGE' }
+          ],
+          Projection: { ProjectionType: 'ALL' }
+        }
+      ]
     }),
     ordersTable
   );
+  await ensureLocalOrderExpiryIndex();
   await createTableIfNeeded(
     new CreateTableCommand({
       TableName: usersTable,
@@ -107,6 +170,24 @@ async function ensureTables(): Promise<void> {
       KeySchema: [{ AttributeName: 'sub', KeyType: 'HASH' }]
     }),
     usersTable
+  );
+  await createTableIfNeeded(
+    new CreateTableCommand({
+      TableName: rateLimitsTable,
+      BillingMode: 'PAY_PER_REQUEST',
+      AttributeDefinitions: [{ AttributeName: 'key', AttributeType: 'S' }],
+      KeySchema: [{ AttributeName: 'key', KeyType: 'HASH' }]
+    }),
+    rateLimitsTable
+  );
+  await createTableIfNeeded(
+    new CreateTableCommand({
+      TableName: merchantsTable,
+      BillingMode: 'PAY_PER_REQUEST',
+      AttributeDefinitions: [{ AttributeName: 'sub', AttributeType: 'S' }],
+      KeySchema: [{ AttributeName: 'sub', KeyType: 'HASH' }]
+    }),
+    merchantsTable
   );
 }
 
@@ -123,6 +204,14 @@ async function waitForDeployedTables(): Promise<void> {
     waitUntilTableExists(
       { client, maxWaitTime: 60 },
       { TableName: usersTable }
+    ),
+    waitUntilTableExists(
+      { client, maxWaitTime: 60 },
+      { TableName: rateLimitsTable }
+    ),
+    waitUntilTableExists(
+      { client, maxWaitTime: 60 },
+      { TableName: merchantsTable }
     )
   ]);
 }

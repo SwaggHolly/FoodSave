@@ -83,6 +83,43 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+  /profile:
+    get:
+      operationId: getUserProfile
+      security:
+        - CognitoBearer: []
+      responses:
+        '200':
+          description: Perfil de la cuenta autenticada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '404':
+          description: Perfil aún no creado.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    put:
+      operationId: saveUserProfile
+      security:
+        - CognitoBearer: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserProfile'
+      responses:
+        '200':
+          description: Perfil guardado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
 components:
   responses:
     BadRequest:
@@ -91,6 +128,17 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Se requiere una sesión válida.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  securitySchemes:
+    CognitoBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     ProductCategory:
       type: string
@@ -163,6 +211,46 @@ components:
                 type: integer
                 minimum: 1
                 maximum: 20
+        delivery:
+          $ref: '#/components/schemas/DeliveryDetails'
+          description: Si se omite, la reserva se toma como recogida en tienda.
+    DeliveryDetails:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [method]
+          properties:
+            method:
+              type: string
+              enum: [pickup]
+        - type: object
+          additionalProperties: false
+          required: [method, city, zone, neighborhood, address]
+          properties:
+            method:
+              type: string
+              enum: [delivery]
+            city:
+              type: string
+              minLength: 2
+              maxLength: 80
+            zone:
+              type: string
+              minLength: 2
+              maxLength: 80
+            neighborhood:
+              type: string
+              minLength: 2
+              maxLength: 80
+            address:
+              type: string
+              minLength: 5
+              maxLength: 160
+            reference:
+              type: string
+              maxLength: 160
+      discriminator:
+        propertyName: method
     OrderReceipt:
       type: object
       required: [orderId, status, total, createdAt]
@@ -178,6 +266,33 @@ components:
         createdAt:
           type: string
           format: date-time
+    UpdateUserProfile:
+      type: object
+      additionalProperties: false
+      required: [name, phone]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 80
+        phone:
+          type: string
+          maxLength: 20
+          pattern: '^[+\d\s()-]*$'
+    UserProfile:
+      allOf:
+        - $ref: '#/components/schemas/UpdateUserProfile'
+        - type: object
+          required: [sub, email, updatedAt]
+          properties:
+            sub:
+              type: string
+            email:
+              type: string
+              format: email
+            updatedAt:
+              type: string
+              format: date-time
     Error:
       type: object
       required: [message]

@@ -17,12 +17,22 @@ Resources:
         AllowOrigins:
           - !Ref FrontendOrigin
         AllowHeaders:
+          - authorization
           - content-type
         AllowMethods:
           - GET
           - POST
+          - PUT
           - OPTIONS
         MaxAge: 300
+      Auth:
+        Authorizers:
+          CognitoAuthorizer:
+            IdentitySource: '$request.header.Authorization'
+            JwtConfiguration:
+              audience:
+                - !Ref FoodSaveUserPoolClient
+              issuer: !Sub 'https://cognito-idp.${AWS::Region}.amazonaws.com/${FoodSaveUserPool}'
 
   FoodSaveApiFunction:
     Type: AWS::Serverless::Function
@@ -37,6 +47,7 @@ Resources:
           DYNAMODB_ENDPOINT: ''
           PRODUCTS_TABLE: !Ref FoodSaveProducts
           ORDERS_TABLE: !Ref FoodSaveOrders
+          USERS_TABLE: !Ref FoodSaveUsers
       Policies:
         - Statement:
             - Effect: Allow
@@ -49,6 +60,12 @@ Resources:
                 - !GetAtt FoodSaveProducts.Arn
                 - !Sub '${FoodSaveProducts.Arn}/index/*'
                 - !GetAtt FoodSaveOrders.Arn
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:PutItem
+              Resource:
+                - !GetAtt FoodSaveUsers.Arn
       Events:
         Health:
           Type: HttpApi
@@ -68,6 +85,79 @@ Resources:
             ApiId: !Ref FoodSaveHttpApi
             Path: /orders
             Method: POST
+        GetProfile:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref FoodSaveHttpApi
+            Path: /profile
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
+        SaveProfile:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref FoodSaveHttpApi
+            Path: /profile
+            Method: PUT
+            Auth:
+              Authorizer: CognitoAuthorizer
+
+  FoodSaveUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: FoodSaveUsers
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: true
+          TemporaryPasswordValidityDays: 7
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+        - Name: name
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+        - Name: phone_number
+          AttributeDataType: String
+          Mutable: true
+          Required: false
+
+  FoodSaveUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: FoodSaveWeb
+      UserPoolId: !Ref FoodSaveUserPool
+      GenerateSecret: false
+      PreventUserExistenceErrors: ENABLED
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+
+  FoodSaveUsers:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: FoodSaveUsers
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: sub
+          AttributeType: S
+      KeySchema:
+        - AttributeName: sub
+          KeyType: HASH
 
   FoodSaveProducts:
     Type: AWS::DynamoDB::Table
@@ -110,3 +200,9 @@ Outputs:
   FoodSaveApiUrl:
     Description: Base URL for the FoodSave API.
     Value: !Sub 'https://${FoodSaveHttpApi}.execute-api.${AWS::Region}.amazonaws.com'
+  FoodSaveUserPoolId:
+    Description: Cognito User Pool ID for FoodSave accounts.
+    Value: !Ref FoodSaveUserPool
+  FoodSaveUserPoolClientId:
+    Description: Public Cognito app client ID for the Angular frontend.
+    Value: !Ref FoodSaveUserPoolClient

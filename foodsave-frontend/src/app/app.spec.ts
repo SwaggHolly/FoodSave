@@ -1,8 +1,10 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { of } from 'rxjs';
+import { Observable, of, throwError } from 'rxjs';
 import { AppComponent } from './app.component';
-import { CreateOrderRequest } from './models/order.model';
+import { CreateOrderRequest, OrderReceipt } from './models/order.model';
 import { Product } from './models/product.model';
+import { AccountService } from './services/account.service';
 import { FoodsaveService } from './services/foodsave.service';
 
 const demoProducts: Product[] = [
@@ -76,6 +78,14 @@ const demoProducts: Product[] = [
 
 describe('AppComponent', () => {
   let submittedOrders: CreateOrderRequest[];
+  let productResponses: Observable<Product[]>[];
+  let orderResponse: Observable<OrderReceipt>;
+  let registrationRequests: Array<{
+    name: string;
+    email: string;
+    phone: string;
+    password: string;
+  }>;
 
   async function createLoadedApp() {
     const fixture = TestBed.createComponent(AppComponent);
@@ -88,21 +98,41 @@ describe('AppComponent', () => {
   beforeEach(async () => {
     localStorage.removeItem('foodsave-cart');
     submittedOrders = [];
+    registrationRequests = [];
+    productResponses = [of(demoProducts)];
+    orderResponse = of({
+      orderId: 'order-123',
+      status: 'reserved',
+      total: 4800,
+      createdAt: '2026-11-17T12:00:00.000Z'
+    });
     await TestBed.configureTestingModule({
       imports: [AppComponent],
       providers: [
         {
           provide: FoodsaveService,
           useValue: {
-            getProducts: () => of(demoProducts),
+            getProducts: () => productResponses.shift() ?? of(demoProducts),
             createOrder: (request: CreateOrderRequest) => {
               submittedOrders.push(request);
-              return of({
-                orderId: 'order-123',
-                status: 'reserved',
-                total: 4800,
-                createdAt: '2026-11-17T12:00:00.000Z'
-              });
+              return orderResponse;
+            }
+          }
+        },
+        {
+          provide: AccountService,
+          useValue: {
+            user: () => null,
+            profile: () => null,
+            isConfigured: true,
+            restoreSession: async () => null,
+            register: async (details: {
+              name: string;
+              email: string;
+              phone: string;
+              password: string;
+            }) => {
+              registrationRequests.push(details);
             }
           }
         }
@@ -126,6 +156,18 @@ describe('AppComponent', () => {
 
     expect(app.totalItems).toBe(2);
     expect(app.cartTotal).toBe(demoProducts[0].discountPrice * 2);
+  });
+
+  it('does not add more than the available stock', async () => {
+    const fixture = await createLoadedApp();
+    const app = fixture.componentInstance;
+    const limitedProduct = { ...app.products[0], stock: 1 };
+
+    app.addToCart(limitedProduct);
+    app.addToCart(limitedProduct);
+
+    expect(app.totalItems).toBe(1);
+    expect(app.notice).toContain('todas las unidades disponibles');
   });
 
   it('persists cart contents in local storage', async () => {
@@ -172,10 +214,118 @@ describe('AppComponent', () => {
       {
         buyerName: 'Ana Pérez',
         buyerPhone: '+573001234567',
+        delivery: { method: 'pickup' },
         items: [{ productId: '1', quantity: 1 }]
       }
     ]);
     expect(app.cartItems).toHaveLength(0);
     expect(app.cartOpen).toBe(false);
+  });
+
+  it('does not submit a reservation when buyer contact fields are empty', async () => {
+    const fixture = await createLoadedApp();
+    const app = fixture.componentInstance;
+    app.addToCart(app.products[0]);
+
+    app.finishOrder();
+
+    expect(submittedOrders).toHaveLength(0);
+    expect(app.cartItems).toHaveLength(1);
+    expect(app.notice).toContain('Completa tu nombre y teléfono');
+  });
+
+  it('requires an address when the customer selects home delivery', async () => {
+    const fixture = await createLoadedApp();
+    const app = fixture.componentInstance;
+    app.addToCart(app.products[0]);
+    app.buyerName = 'Ana Pérez';
+    app.buyerPhone = '+573001234567';
+    app.deliveryMethod = 'delivery';
+
+    app.finishOrder();
+
+    expect(submittedOrders).toHaveLength(0);
+    expect(app.notice).toContain('ciudad, zona, barrio y dirección');
+  });
+
+  it('sends the delivery location with the order', async () => {
+    const fixture = await createLoadedApp();
+    const app = fixture.componentInstance;
+    app.addToCart(app.products[0]);
+    app.buyerName = 'Ana Pérez';
+    app.buyerPhone = '+573001234567';
+    app.deliveryMethod = 'delivery';
+    app.deliveryCity = 'Bogotá';
+    app.deliveryZone = 'Norte';
+    app.deliveryNeighborhood = 'Chapinero';
+    app.deliveryAddress = 'Carrera 7 # 45-10';
+    app.deliveryReference = 'Torre 2';
+
+    app.finishOrder();
+
+    expect(submittedOrders[0]?.delivery).toEqual({
+      method: 'delivery',
+      city: 'Bogotá',
+      zone: 'Norte',
+      neighborhood: 'Chapinero',
+      address: 'Carrera 7 # 45-10',
+      reference: 'Torre 2'
+    });
+  });
+
+  it('refreshes products and preserves the cart after an inventory conflict', async () => {
+    const refreshedProduct = { ...demoProducts[0], stock: 1 };
+    productResponses = [of(demoProducts), of([refreshedProduct])];
+    orderResponse = throwError(
+      () => new HttpErrorResponse({ status: 409, error: { message: 'Inventario cambió.' } })
+    );
+    const fixture = await createLoadedApp();
+    const app = fixture.componentInstance;
+    app.addToCart(app.products[0]);
+    app.buyerName = 'Ana Pérez';
+    app.buyerPhone = '+573001234567';
+
+    app.finishOrder();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(app.products).toEqual([refreshedProduct]);
+    expect(app.cartItems).toHaveLength(1);
+    expect(app.isSubmittingOrder).toBe(false);
+    expect(app.notice).toBe('Inventario cambió.');
+  });
+
+  it('shows a recoverable message when the catalog API is unavailable', async () => {
+    productResponses = [
+      throwError(() => new HttpErrorResponse({ status: 0 }))
+    ];
+    const fixture = await createLoadedApp();
+    const app = fixture.componentInstance;
+
+    expect(app.isLoadingProducts).toBe(false);
+    expect(app.catalogError).toContain('Revisa que la API esté ejecutándose');
+  });
+
+  it('starts email verification after submitting account registration details', async () => {
+    const fixture = await createLoadedApp();
+    const app = fixture.componentInstance;
+    app.openAccount();
+    app.accountName = 'Ana Pérez';
+    app.accountEmail = 'ana@example.com';
+    app.accountPhone = '+573001234567';
+    app.accountPassword = 'Comida2026';
+
+    await app.submitRegistration();
+
+    expect(registrationRequests).toEqual([
+      {
+        name: 'Ana Pérez',
+        email: 'ana@example.com',
+        phone: '+573001234567',
+        password: 'Comida2026'
+      }
+    ]);
+    expect(app.accountMode).toBe('confirm');
+    expect(app.accountMessage).toContain('código de verificación');
   });
 });

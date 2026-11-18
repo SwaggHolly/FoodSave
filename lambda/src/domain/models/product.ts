@@ -12,6 +12,9 @@ export const productSchema = z.object({
   expirationDate: z.iso.datetime(),
   stock: z.number().int().nonnegative(),
   imageUrl: z.url()
+}).refine((product) => product.discountPrice < product.originalPrice, {
+  path: ['discountPrice'],
+  message: 'El precio con descuento debe ser menor al precio original.'
 });
 
 export type Product = z.infer<typeof productSchema>;

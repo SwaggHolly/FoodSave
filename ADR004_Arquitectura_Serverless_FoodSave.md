@@ -30,7 +30,10 @@ puertos y adaptadores.
   DynamoDB; si el inventario cambió o el producto venció, no se crea la reserva.
 - DynamoDB Local y AWS SAM permiten desarrollar y probar sin desplegar recursos a
   AWS.
-- La API inicial no incluye cuentas de comercios, autenticación ni pagos. Antes de
-  abrir la creación de pedidos al público se deben definir autenticación, controles
-  contra abuso y políticas de privacidad para los datos de contacto.
+- Amazon Cognito gestiona las cuentas de consumidores y la verificación por correo;
+  DynamoDB conserva el perfil asociado al identificador autenticado. Las rutas de
+  perfil validan JWT y las reservas como invitado siguen disponibles.
+- La API no incluye cuentas de comercios ni pagos. Antes de abrir la creación de
+  pedidos al público se deben definir controles contra abuso y políticas de
+  privacidad para los datos de contacto.
 - Los índices y consultas se deben revisar si el catálogo crece significativamente.

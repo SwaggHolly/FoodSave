@@ -55,6 +55,7 @@ export class ReserveOrderService {
       id: this.createId(),
       buyerName: request.buyerName,
       buyerPhone: request.buyerPhone,
+      delivery: request.delivery ?? { method: 'pickup' },
       status: 'reserved',
       items: orderItems,
       total: orderItems.reduce((total, item) => total + item.lineTotal, 0),

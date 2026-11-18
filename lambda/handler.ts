@@ -1,11 +1,13 @@
 import type {
   APIGatewayProxyEventV2,
+  APIGatewayProxyEventV2WithJWTAuthorizer,
   APIGatewayProxyHandlerV2,
   APIGatewayProxyStructuredResultV2
 } from 'aws-lambda';
 import { z } from 'zod';
 import { DynamoDBFoodSaveRepository } from './src/adapters/output/database/dynamodb-foodsave-repository.js';
 import { createOrderRequestSchema } from './src/domain/models/order.js';
+import { updateUserProfileSchema } from './src/domain/models/user-profile.js';
 import {
   InventoryConflictError,
   ProductNotFoundError,
@@ -30,6 +32,15 @@ function jsonResponse(
 
 function isProductCategory(value: string): value is ProductCategory {
   return PRODUCT_CATEGORIES.some((category) => category === value);
+}
+
+function getJwtClaims(
+  event: APIGatewayProxyEventV2
+): Record<string, string | number | boolean | string[]> | undefined {
+  if (!('authorizer' in event.requestContext)) return undefined;
+  const context =
+    event.requestContext as APIGatewayProxyEventV2WithJWTAuthorizer['requestContext'];
+  return context.authorizer.jwt.claims;
 }
 
 export function createApiHandler(
@@ -102,6 +113,54 @@ export function createApiHandler(
         }
         console.error('No se pudo reservar el pedido.', error);
         return jsonResponse(500, { message: 'No se pudo reservar el pedido.' });
+      }
+    }
+
+    if ((method === 'GET' || method === 'PUT') && path === '/profile') {
+      const claims = getJwtClaims(event);
+      const sub = claims?.['sub'];
+      const email = claims?.['email'];
+      if (typeof sub !== 'string' || typeof email !== 'string') {
+        return jsonResponse(401, { message: 'Inicia sesión para consultar tu perfil.' });
+      }
+
+      if (method === 'GET') {
+        try {
+          const profile = await repository.getUserProfile(sub);
+          if (!profile) {
+            return jsonResponse(404, { message: 'Aún no tienes un perfil guardado.' });
+          }
+          return jsonResponse(200, profile);
+        } catch (error: unknown) {
+          console.error('No se pudo consultar el perfil.', error);
+          return jsonResponse(500, { message: 'No se pudo consultar el perfil.' });
+        }
+      }
+
+      let body: unknown;
+      try {
+        const rawBody = event.body ?? '';
+        body = JSON.parse(
+          event.isBase64Encoded ? Buffer.from(rawBody, 'base64').toString('utf8') : rawBody
+        );
+      } catch {
+        return jsonResponse(400, { message: 'El cuerpo de la solicitud no es JSON válido.' });
+      }
+
+      const profile = updateUserProfileSchema.safeParse(body);
+      if (!profile.success) {
+        return jsonResponse(400, {
+          message: 'Revisa los datos del perfil.',
+          details: z.treeifyError(profile.error)
+        });
+      }
+
+      try {
+        const savedProfile = await repository.saveUserProfile(sub, email, profile.data);
+        return jsonResponse(200, savedProfile);
+      } catch (error: unknown) {
+        console.error('No se pudo guardar el perfil.', error);
+        return jsonResponse(500, { message: 'No se pudo guardar el perfil.' });
       }
     }
 

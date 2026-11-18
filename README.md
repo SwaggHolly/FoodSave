@@ -24,4 +24,4 @@ de manera controlada antes de incorporarlos a la rama principal.
 - `foodsave-frontend/`: interfaz web en Angular.
 - `lambda/`: API REST serverless con AWS Lambda, API Gateway HTTP API y DynamoDB.
 
-La API valida las reservas y descuenta existencias en una transacción de DynamoDB. La decisión está documentada en [ADR004](./ADR004_Arquitectura_Serverless_FoodSave.md). Consulta [lambda/README.md](./lambda/README.md) para ejecutar el MVP localmente y desplegarlo.
+La API valida las reservas y descuenta existencias en una transacción de DynamoDB. En el carrito se puede solicitar recogida o domicilio; para el domicilio se captura la dirección y la tienda confirma la cobertura y el costo. Las cuentas usan Amazon Cognito; los perfiles se guardan por usuario en DynamoDB y las reservas como invitado siguen disponibles. La decisión serverless está documentada en [ADR004](./ADR004_Arquitectura_Serverless_FoodSave.md). Consulta [lambda/README.md](./lambda/README.md) para ejecutar el MVP localmente y desplegarlo.

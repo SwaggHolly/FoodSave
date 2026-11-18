@@ -10,8 +10,10 @@ import {
 import { FormsModule } from '@angular/forms';
 import localeEsCo from '@angular/common/locales/es-CO';
 import { filter, take } from 'rxjs';
-import { CreateOrderRequest, OrderReceipt } from './models/order.model';
+import { CreateOrderRequest, OrderDelivery, OrderReceipt } from './models/order.model';
 import { Product } from './models/product.model';
+import { UpdateUserProfile } from './models/user-profile.model';
+import { AccountService } from './services/account.service';
 import { FoodsaveService } from './services/foodsave.service';
 
 registerLocaleData(localeEsCo, 'es-CO');
@@ -27,6 +29,7 @@ interface SavedCartItem {
 }
 
 type CategoryFilter = 'todos' | Product['category'];
+type AccountMode = 'signup' | 'confirm' | 'signin' | 'profile';
 
 @Component({
   selector: 'app-root',
@@ -41,22 +44,40 @@ export class AppComponent {
   searchTerm = '';
   selectedCategory: CategoryFilter = 'todos';
   cartOpen = false;
+  accountOpen = false;
+  accountMode: AccountMode = 'signup';
+  accountName = '';
+  accountEmail = '';
+  accountPhone = '';
+  accountPassword = '';
+  confirmationCode = '';
+  accountError = '';
+  accountMessage = '';
+  isSubmittingAccount = false;
   notice = '';
   isLoadingProducts = true;
   catalogError = '';
   buyerName = '';
   buyerPhone = '';
+  deliveryMethod: OrderDelivery['method'] = 'pickup';
+  deliveryCity = '';
+  deliveryZone = '';
+  deliveryNeighborhood = '';
+  deliveryAddress = '';
+  deliveryReference = '';
   isSubmittingOrder = false;
   private readonly storageKey = 'foodsave-cart';
   private noticeTimeout?: ReturnType<typeof setTimeout>;
 
   constructor(
     private readonly foodSave: FoodsaveService,
+    readonly account: AccountService,
     private readonly applicationRef: ApplicationRef,
     private readonly changeDetector: ChangeDetectorRef,
     @Inject(PLATFORM_ID) private readonly platformId: object
   ) {
     if (isPlatformBrowser(this.platformId)) {
+      void this.restoreAccount();
       this.applicationRef.isStable
         .pipe(
           filter((isStable) => isStable),
@@ -68,6 +89,147 @@ export class AppComponent {
 
   reloadProducts(): void {
     this.loadProducts();
+  }
+
+  openAccount(): void {
+    this.accountError = '';
+    this.accountMessage = '';
+    this.accountOpen = true;
+    if (this.account.user()) {
+      this.accountMode = 'profile';
+      const profile = this.account.profile();
+      this.accountName = profile?.name ?? '';
+      this.accountEmail = profile?.email ?? this.account.user()?.email ?? '';
+      this.accountPhone = profile?.phone ?? '';
+    } else {
+      this.accountMode = 'signup';
+    }
+  }
+
+  setAccountMode(mode: AccountMode): void {
+    this.accountMode = mode;
+    this.accountError = '';
+    this.accountMessage = '';
+  }
+
+  async submitRegistration(): Promise<void> {
+    this.accountError = '';
+    this.accountMessage = '';
+    this.isSubmittingAccount = true;
+    try {
+      await this.account.register({
+        name: this.accountName,
+        email: this.accountEmail,
+        phone: this.accountPhone,
+        password: this.accountPassword
+      });
+      this.accountMode = 'confirm';
+      this.accountMessage = 'Te enviamos un código de verificación a tu correo.';
+    } catch (error: unknown) {
+      this.accountError = this.accountErrorMessage(error);
+    } finally {
+      this.isSubmittingAccount = false;
+      this.changeDetector.markForCheck();
+    }
+  }
+
+  async confirmRegistration(): Promise<void> {
+    this.accountError = '';
+    this.accountMessage = '';
+    this.isSubmittingAccount = true;
+    try {
+      await this.account.confirmRegistration(this.accountEmail, this.confirmationCode);
+      this.accountMode = 'signin';
+      this.accountPassword = '';
+      this.accountMessage = 'Correo verificado. Ahora puedes iniciar sesión.';
+    } catch (error: unknown) {
+      this.accountError = this.accountErrorMessage(error);
+    } finally {
+      this.isSubmittingAccount = false;
+      this.changeDetector.markForCheck();
+    }
+  }
+
+  async resendConfirmationCode(): Promise<void> {
+    this.accountError = '';
+    this.accountMessage = '';
+    this.isSubmittingAccount = true;
+    try {
+      await this.account.resendConfirmationCode(this.accountEmail);
+      this.accountMessage = 'Te enviamos un nuevo código de verificación.';
+    } catch (error: unknown) {
+      this.accountError = this.accountErrorMessage(error);
+    } finally {
+      this.isSubmittingAccount = false;
+      this.changeDetector.markForCheck();
+    }
+  }
+
+  async submitSignIn(): Promise<void> {
+    this.accountError = '';
+    this.accountMessage = '';
+    this.isSubmittingAccount = true;
+    try {
+      const profile = await this.account.signInWithEmail({
+        email: this.accountEmail,
+        password: this.accountPassword
+      });
+      this.buyerName = profile.name;
+      this.buyerPhone = profile.phone;
+      this.accountOpen = false;
+      this.accountPassword = '';
+      this.showNotice(`¡Bienvenido, ${profile.name}!`);
+    } catch (error: unknown) {
+      this.accountError = this.accountErrorMessage(error);
+      if (this.account.user()) {
+        this.accountMode = 'profile';
+        this.accountName = this.account.profile()?.name ?? '';
+        this.accountEmail = this.account.user()?.email ?? '';
+        this.accountPhone = this.account.profile()?.phone ?? '';
+      }
+    } finally {
+      this.isSubmittingAccount = false;
+      this.changeDetector.markForCheck();
+    }
+  }
+
+  async saveAccountProfile(): Promise<void> {
+    this.accountError = '';
+    this.accountMessage = '';
+    this.isSubmittingAccount = true;
+    try {
+      const profile: UpdateUserProfile = {
+        name: this.accountName.trim(),
+        phone: this.accountPhone.trim()
+      };
+      const saved = await this.account.saveProfile(profile);
+      this.buyerName = saved.name;
+      this.buyerPhone = saved.phone;
+      this.accountOpen = false;
+      this.showNotice('Tus datos se guardaron correctamente.');
+    } catch (error: unknown) {
+      this.accountError = this.accountErrorMessage(error);
+    } finally {
+      this.isSubmittingAccount = false;
+      this.changeDetector.markForCheck();
+    }
+  }
+
+  async signOut(): Promise<void> {
+    this.accountError = '';
+    this.isSubmittingAccount = true;
+    try {
+      await this.account.signOutCurrentUser();
+      this.buyerName = '';
+      this.buyerPhone = '';
+      this.accountOpen = false;
+      this.showNotice('Cerraste sesión.');
+    } catch (error: unknown) {
+      this.accountError = this.accountErrorMessage(error);
+    } finally {
+      this.isSubmittingAccount = false;
+      this.changeDetector.markForCheck();
+    }
   }
 
   private loadProducts(): void {
@@ -86,6 +248,21 @@ export class AppComponent {
         this.changeDetector.markForCheck();
       }
     });
+  }
+
+  private async restoreAccount(): Promise<void> {
+    try {
+      const profile = await this.account.restoreSession();
+      if (profile) {
+        this.buyerName = profile.name;
+        this.buyerPhone = profile.phone;
+      }
+    } catch (error: unknown) {
+      console.error('No se pudo recuperar la cuenta de FoodSave.', error);
+      this.showNotice('No se pudo recuperar tu cuenta. Intenta iniciar sesión de nuevo.');
+    } finally {
+      this.changeDetector.markForCheck();
+    }
   }
 
   get filteredProducts(): Product[] {
@@ -158,10 +335,31 @@ export class AppComponent {
       this.showNotice('Completa tu nombre y teléfono para reservar el pedido.');
       return;
     }
+    if (
+      this.deliveryMethod === 'delivery' &&
+      (!this.deliveryCity.trim() ||
+        !this.deliveryZone.trim() ||
+        !this.deliveryNeighborhood.trim() ||
+        !this.deliveryAddress.trim())
+    ) {
+      this.showNotice('Completa ciudad, zona, barrio y dirección para el domicilio.');
+      return;
+    }
 
     const request: CreateOrderRequest = {
       buyerName: this.buyerName.trim(),
       buyerPhone: this.buyerPhone.trim(),
+      delivery:
+        this.deliveryMethod === 'pickup'
+          ? { method: 'pickup' }
+          : {
+              method: 'delivery',
+              city: this.deliveryCity.trim(),
+              zone: this.deliveryZone.trim(),
+              neighborhood: this.deliveryNeighborhood.trim(),
+              address: this.deliveryAddress.trim(),
+              reference: this.deliveryReference.trim()
+            },
       items: this.cartItems.map(({ product, quantity }) => ({
         productId: product.id,
         quantity
@@ -179,8 +377,11 @@ export class AppComponent {
         this.isSubmittingOrder = false;
         this.loadProducts();
         this.showNotice(
-          `Reserva ${receipt.orderId} creada. La tienda coordinará contigo la recogida; esta versión no procesa pagos.`
+          this.deliveryMethod === 'delivery'
+            ? `Reserva ${receipt.orderId} creada. La tienda confirmará cobertura, costo y tiempo del domicilio. Esta versión no procesa pagos.`
+            : `Reserva ${receipt.orderId} creada. La tienda coordinará contigo la recogida; esta versión no procesa pagos.`
         );
+        this.changeDetector.markForCheck();
       },
       error: (error: unknown) => {
         this.isSubmittingOrder = false;
@@ -188,6 +389,7 @@ export class AppComponent {
           this.loadProducts();
         }
         this.showNotice(this.apiErrorMessage(error));
+        this.changeDetector.markForCheck();
       }
     });
   }
@@ -259,7 +461,10 @@ export class AppComponent {
     this.notice = message;
     if (isPlatformBrowser(this.platformId)) {
       if (this.noticeTimeout) clearTimeout(this.noticeTimeout);
-      this.noticeTimeout = setTimeout(() => (this.notice = ''), 3500);
+      this.noticeTimeout = setTimeout(() => {
+        this.notice = '';
+        this.changeDetector.markForCheck();
+      }, 3500);
     }
   }
 
@@ -281,5 +486,32 @@ export class AppComponent {
 
     console.error('Ocurrió un error inesperado al comunicarse con FoodSave.', error);
     return 'Ocurrió un error inesperado. Intenta de nuevo.';
+  }
+
+  private accountErrorMessage(error: unknown): string {
+    if (error instanceof HttpErrorResponse) return this.apiErrorMessage(error);
+    if (error instanceof Error) {
+      switch (error.name) {
+        case 'UsernameExistsException':
+          return 'Ya existe una cuenta con ese correo electrónico.';
+        case 'CodeMismatchException':
+          return 'El código de verificación no es correcto.';
+        case 'ExpiredCodeException':
+          return 'El código venció. Solicita uno nuevo.';
+        case 'InvalidPasswordException':
+          return 'La contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula y un número.';
+        case 'UserNotConfirmedException':
+          return 'Primero verifica tu correo con el código que te enviamos.';
+        case 'NotAuthorizedException':
+          return 'El correo o la contraseña no son correctos.';
+        case 'LimitExceededException':
+        case 'TooManyRequestsException':
+          return 'Se hicieron demasiados intentos. Espera un momento y vuelve a intentar.';
+        default:
+          return error.message;
+      }
+    }
+    console.error('Ocurrió un error inesperado en la cuenta de FoodSave.', error);
+    return 'No se pudo completar la operación de cuenta. Intenta de nuevo.';
   }
 }

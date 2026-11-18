@@ -31,6 +31,7 @@ const client = new DynamoDBClient({
 const documentClient = DynamoDBDocumentClient.from(client);
 const productsTable = process.env.PRODUCTS_TABLE ?? 'FoodSaveProducts';
 const ordersTable = process.env.ORDERS_TABLE ?? 'FoodSaveOrders';
+const usersTable = process.env.USERS_TABLE ?? 'FoodSaveUsers';
 
 async function waitForLocalDatabase(): Promise<void> {
   if (!isLocal) return;
@@ -98,6 +99,15 @@ async function ensureTables(): Promise<void> {
     }),
     ordersTable
   );
+  await createTableIfNeeded(
+    new CreateTableCommand({
+      TableName: usersTable,
+      BillingMode: 'PAY_PER_REQUEST',
+      AttributeDefinitions: [{ AttributeName: 'sub', AttributeType: 'S' }],
+      KeySchema: [{ AttributeName: 'sub', KeyType: 'HASH' }]
+    }),
+    usersTable
+  );
 }
 
 async function waitForDeployedTables(): Promise<void> {
@@ -109,6 +119,10 @@ async function waitForDeployedTables(): Promise<void> {
     waitUntilTableExists(
       { client, maxWaitTime: 60 },
       { TableName: ordersTable }
+    ),
+    waitUntilTableExists(
+      { client, maxWaitTime: 60 },
+      { TableName: usersTable }
     )
   ]);
 }

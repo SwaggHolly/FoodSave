@@ -2,6 +2,7 @@ import { DynamoDBClient, TransactionCanceledException } from '@aws-sdk/client-dy
 import {
   DynamoDBDocumentClient,
   GetCommand,
+  PutCommand,
   QueryCommand,
   ScanCommand,
   TransactWriteCommand
@@ -10,6 +11,11 @@ import type { ScanCommandInput } from '@aws-sdk/lib-dynamodb';
 import type { Order } from '../../../domain/models/order.js';
 import { productSchema, type Product, type ProductCategory } from '../../../domain/models/product.js';
 import type {
+  UpdateUserProfile,
+  UserProfile
+} from '../../../domain/models/user-profile.js';
+import { userProfileSchema } from '../../../domain/models/user-profile.js';
+import type {
   FoodSaveRepository,
   ProductListOptions
 } from '../../../ports/output/foodsave-repository.js';
@@ -17,6 +23,7 @@ import { InventoryConflictError } from '../../../domain/services/reserve-order.j
 
 const productsTable = process.env.PRODUCTS_TABLE ?? 'FoodSaveProducts';
 const ordersTable = process.env.ORDERS_TABLE ?? 'FoodSaveOrders';
+const usersTable = process.env.USERS_TABLE ?? 'FoodSaveUsers';
 const endpoint = process.env.DYNAMODB_ENDPOINT;
 
 const documentClient = DynamoDBDocumentClient.from(
@@ -35,13 +42,17 @@ const documentClient = DynamoDBDocumentClient.from(
 );
 
 export class DynamoDBFoodSaveRepository implements FoodSaveRepository {
+  constructor(
+    private readonly client: DynamoDBDocumentClient = documentClient
+  ) {}
+
   async listProducts(options: ProductListOptions): Promise<Product[]> {
     const products: Product[] = [];
     let lastEvaluatedKey: ScanCommandInput['ExclusiveStartKey'];
 
     do {
       const page = options.category
-        ? await documentClient.send(
+        ? await this.client.send(
             new QueryCommand({
               TableName: productsTable,
               IndexName: 'CategoryTitleIndex',
@@ -51,7 +62,7 @@ export class DynamoDBFoodSaveRepository implements FoodSaveRepository {
               ExclusiveStartKey: lastEvaluatedKey
             })
           )
-        : await documentClient.send(
+        : await this.client.send(
             new ScanCommand({
               TableName: productsTable,
               ExclusiveStartKey: lastEvaluatedKey
@@ -78,7 +89,7 @@ export class DynamoDBFoodSaveRepository implements FoodSaveRepository {
   async getProductsByIds(ids: string[]): Promise<Product[]> {
     const products = await Promise.all(
       ids.map(async (id) => {
-        const response = await documentClient.send(
+        const response = await this.client.send(
           new GetCommand({
             TableName: productsTable,
             Key: { id },
@@ -94,7 +105,7 @@ export class DynamoDBFoodSaveRepository implements FoodSaveRepository {
 
   async createOrder(order: Order): Promise<void> {
     try {
-      await documentClient.send(
+      await this.client.send(
         new TransactWriteCommand({
           TransactItems: [
             ...order.items.map((item) => ({
@@ -130,5 +141,36 @@ export class DynamoDBFoodSaveRepository implements FoodSaveRepository {
       }
       throw error;
     }
+  }
+
+  async getUserProfile(sub: string): Promise<UserProfile | undefined> {
+    const response = await this.client.send(
+      new GetCommand({
+        TableName: usersTable,
+        Key: { sub },
+        ConsistentRead: true
+      })
+    );
+    return response.Item ? userProfileSchema.parse(response.Item) : undefined;
+  }
+
+  async saveUserProfile(
+    sub: string,
+    email: string,
+    profile: UpdateUserProfile
+  ): Promise<UserProfile> {
+    const saved: UserProfile = {
+      sub,
+      email,
+      ...profile,
+      updatedAt: new Date().toISOString()
+    };
+    await this.client.send(
+      new PutCommand({
+        TableName: usersTable,
+        Item: saved
+      })
+    );
+    return saved;
   }
 }

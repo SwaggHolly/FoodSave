@@ -1,5 +1,18 @@
 import { z } from 'zod';
 
+const deliveryAddressSchema = z.object({
+  city: z.string().trim().min(2).max(80),
+  zone: z.string().trim().min(2).max(80),
+  neighborhood: z.string().trim().min(2).max(80),
+  address: z.string().trim().min(5).max(160),
+  reference: z.string().trim().max(160).optional().default('')
+});
+
+export const deliveryDetailsSchema = z.discriminatedUnion('method', [
+  z.object({ method: z.literal('pickup') }),
+  deliveryAddressSchema.extend({ method: z.literal('delivery') })
+]);
+
 export const createOrderRequestSchema = z
   .object({
     buyerName: z.string().trim().min(2).max(80),
@@ -17,7 +30,8 @@ export const createOrderRequestSchema = z
         })
       )
       .min(1)
-      .max(20)
+      .max(20),
+    delivery: deliveryDetailsSchema.optional()
   })
   .superRefine((request, context) => {
     const productIds = request.items.map((item) => item.productId);
@@ -31,6 +45,7 @@ export const createOrderRequestSchema = z
   });
 
 export type CreateOrderRequest = z.infer<typeof createOrderRequestSchema>;
+export type DeliveryDetails = z.infer<typeof deliveryDetailsSchema>;
 
 export interface OrderLine {
   productId: string;
@@ -44,6 +59,7 @@ export interface Order {
   id: string;
   buyerName: string;
   buyerPhone: string;
+  delivery?: DeliveryDetails;
   status: 'reserved';
   items: OrderLine[];
   total: number;

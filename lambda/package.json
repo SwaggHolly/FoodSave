@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "tsx --test handler.test.ts src/domain/services/reserve-order.test.ts",
+    "test": "tsx --test handler.test.ts src/adapters/output/database/dynamodb-foodsave-repository.test.ts src/domain/models/order.test.ts src/domain/models/product.test.ts src/domain/services/reserve-order.test.ts src/seed/products.test.ts",
     "seed:local": "tsx scripts/seed.ts --local",
     "seed:aws": "tsx scripts/seed.ts"
   },

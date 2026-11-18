@@ -8,7 +8,7 @@ import {
 } from '@angular/common/http/testing';
 import { FoodsaveService } from './foodsave.service';
 import { environment } from '../../environments/environment';
-import { Product } from '../models/product.model';
+import { Product, ProtocolStatus } from '../models/product.model';
 
 const product: Product = {
   id: '1',
@@ -71,5 +71,13 @@ describe('FoodsaveService', () => {
     });
 
     expect(orderId).toBe('order-123');
+  });
+
+  it('reports the configured protocol status list', () => {
+    let response: ProtocolStatus[] | undefined;
+    service.getProtocolsStatus().subscribe((statuses) => (response = statuses));
+
+    expect(response).toHaveLength(4);
+    expect(response?.every((status) => status.status === 'online')).toBe(true);
   });
 });

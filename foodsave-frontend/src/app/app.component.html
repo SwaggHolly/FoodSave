@@ -7,11 +7,27 @@
     <a href="#productos">Explorar productos</a>
     <a href="#como-funciona">Cómo funciona</a>
   </nav>
-  <button class="cart-button" type="button" (click)="cartOpen = true" aria-label="Abrir carrito">
-    <span aria-hidden="true">🛒</span>
-    <span>Mi carrito</span>
-    <span class="cart-count">{{ totalItems }}</span>
-  </button>
+  <div class="header-actions">
+    <button
+      class="account-button"
+      type="button"
+      (click)="openAccount()"
+      [attr.aria-label]="account.user() ? 'Abrir mi cuenta' : 'Crear una cuenta'"
+    >
+      <span aria-hidden="true">👤</span>
+      <span>{{ account.user() ? 'Mi cuenta' : 'Crear cuenta' }}</span>
+    </button>
+    <button
+      class="cart-button"
+      type="button"
+      (click)="accountOpen = false; cartOpen = true"
+      aria-label="Abrir carrito"
+    >
+      <span aria-hidden="true">🛒</span>
+      <span>Mi carrito</span>
+      <span class="cart-count">{{ totalItems }}</span>
+    </button>
+  </div>
 </header>
 
 <main>
@@ -189,13 +205,94 @@
                 placeholder="+57 300 123 4567"
               />
             </label>
+            <label>
+              Forma de entrega
+              <select name="deliveryMethod" [(ngModel)]="deliveryMethod">
+                <option value="pickup">Recoger en tienda</option>
+                <option value="delivery">Domicilio</option>
+              </select>
+            </label>
+            @if (deliveryMethod === 'delivery') {
+              <div class="delivery-fields">
+                <label>
+                  Ciudad o municipio
+                  <input
+                    type="text"
+                    name="deliveryCity"
+                    [(ngModel)]="deliveryCity"
+                    autocomplete="address-level2"
+                    maxlength="80"
+                    required
+                  />
+                </label>
+                <label>
+                  Zona o sector
+                  <input
+                    type="text"
+                    name="deliveryZone"
+                    [(ngModel)]="deliveryZone"
+                    maxlength="80"
+                    placeholder="Ej. norte, centro, sur"
+                    required
+                  />
+                </label>
+                <label>
+                  Barrio
+                  <input
+                    type="text"
+                    name="deliveryNeighborhood"
+                    [(ngModel)]="deliveryNeighborhood"
+                    maxlength="80"
+                    required
+                  />
+                </label>
+                <label>
+                  Dirección completa
+                  <input
+                    type="text"
+                    name="deliveryAddress"
+                    [(ngModel)]="deliveryAddress"
+                    autocomplete="street-address"
+                    maxlength="160"
+                    placeholder="Calle, carrera, número y apartamento"
+                    required
+                  />
+                </label>
+                <label>
+                  Indicaciones adicionales <span>(opcional)</span>
+                  <input
+                    type="text"
+                    name="deliveryReference"
+                    [(ngModel)]="deliveryReference"
+                    maxlength="160"
+                    placeholder="Torre, conjunto o punto de referencia"
+                  />
+                </label>
+              </div>
+            }
           </div>
-          <small>El pedido reserva las unidades. La tienda coordinará contigo la recogida; no se procesa ningún pago en línea.</small>
+          <small>
+            @if (deliveryMethod === 'delivery') {
+              La tienda confirmará cobertura, costo y tiempo del domicilio antes de coordinar la entrega.
+            } @else {
+              El pedido reserva las unidades. La tienda coordinará contigo la recogida.
+            }
+            No se procesa ningún pago en línea.
+          </small>
           <button
             type="button"
             class="primary-button checkout-button"
             (click)="finishOrder()"
-            [disabled]="isSubmittingOrder || !buyerName.trim() || !buyerPhone.trim()"
+            [disabled]="
+              isSubmittingOrder ||
+              !buyerName.trim() ||
+              !buyerPhone.trim() ||
+              (deliveryMethod === 'delivery' &&
+                (!deliveryCity.trim() ||
+                  !deliveryZone.trim() ||
+                  !deliveryNeighborhood.trim() ||
+                  !deliveryAddress.trim()))
+            "
           >
             {{ isSubmittingOrder ? 'Reservando...' : 'Reservar pedido' }}
             <span aria-hidden="true">→</span>
@@ -209,6 +306,207 @@
         </div>
       }
     </aside>
+  </div>
+}
+
+@if (accountOpen) {
+  <div class="account-backdrop" (click)="accountOpen = false" (keydown.escape)="accountOpen = false">
+    <section
+      class="account-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="account-title"
+      (click)="$event.stopPropagation()"
+    >
+      <div class="account-heading">
+        <div>
+          <span class="eyebrow">TU CUENTA FOODSAVE</span>
+          <h2 id="account-title">
+            @switch (accountMode) {
+              @case ('signup') { Crea tu cuenta }
+              @case ('confirm') { Verifica tu correo }
+              @case ('signin') { Inicia sesión }
+              @case ('profile') { Mis datos }
+            }
+          </h2>
+        </div>
+        <button
+          type="button"
+          class="close-button"
+          aria-label="Cerrar cuenta"
+          (click)="accountOpen = false"
+        >×</button>
+      </div>
+
+      @if (!account.isConfigured) {
+        <div class="account-unconfigured" role="status">
+          <span aria-hidden="true">🔐</span>
+          <h3>Falta conectar el servicio de cuentas</h3>
+          <p>
+            La interfaz ya está lista. Para registrar usuarios, configura el User Pool y el cliente
+            de Amazon Cognito en los archivos de entorno del frontend después de desplegar la API.
+          </p>
+        </div>
+      } @else {
+        @if (accountMode === 'signup') {
+          <form class="account-form" (ngSubmit)="submitRegistration()">
+            <label>
+              Nombre completo
+              <input
+                type="text"
+                name="accountName"
+                [(ngModel)]="accountName"
+                autocomplete="name"
+                minlength="2"
+                maxlength="80"
+                required
+              />
+            </label>
+            <label>
+              Correo electrónico
+              <input
+                type="email"
+                name="accountEmail"
+                [(ngModel)]="accountEmail"
+                autocomplete="email"
+                maxlength="254"
+                required
+              />
+            </label>
+            <label>
+              Teléfono <span>(opcional)</span>
+              <input
+                type="tel"
+                name="accountPhone"
+                [(ngModel)]="accountPhone"
+                autocomplete="tel"
+                maxlength="20"
+                pattern="^[+0-9()\s-]*$"
+                placeholder="+57 300 123 4567"
+              />
+            </label>
+            <label>
+              Contraseña
+              <input
+                type="password"
+                name="accountPassword"
+                [(ngModel)]="accountPassword"
+                autocomplete="new-password"
+                minlength="8"
+                required
+              />
+            </label>
+            <small class="account-hint">Usa al menos 8 caracteres, una mayúscula, una minúscula y un número.</small>
+            <button class="primary-button account-submit" type="submit" [disabled]="isSubmittingAccount">
+              {{ isSubmittingAccount ? 'Creando cuenta...' : 'Crear cuenta' }}
+            </button>
+            <p class="account-switch">
+              ¿Ya tienes cuenta?
+              <button type="button" (click)="setAccountMode('signin')">Inicia sesión</button>
+            </p>
+          </form>
+        } @else if (accountMode === 'confirm') {
+          <form class="account-form" (ngSubmit)="confirmRegistration()">
+            <p class="account-description">Ingresa el código que enviamos a {{ accountEmail }}.</p>
+            <label>
+              Código de verificación
+              <input
+                type="text"
+                name="confirmationCode"
+                [(ngModel)]="confirmationCode"
+                autocomplete="one-time-code"
+                inputmode="numeric"
+                maxlength="8"
+                required
+              />
+            </label>
+            <button class="primary-button account-submit" type="submit" [disabled]="isSubmittingAccount">
+              {{ isSubmittingAccount ? 'Verificando...' : 'Verificar correo' }}
+            </button>
+            <p class="account-switch">
+              ¿No recibiste el código?
+              <button type="button" [disabled]="isSubmittingAccount" (click)="resendConfirmationCode()">
+                Enviar otro
+              </button>
+            </p>
+          </form>
+        } @else if (accountMode === 'signin') {
+          <form class="account-form" (ngSubmit)="submitSignIn()">
+            <label>
+              Correo electrónico
+              <input
+                type="email"
+                name="accountEmail"
+                [(ngModel)]="accountEmail"
+                autocomplete="email"
+                required
+              />
+            </label>
+            <label>
+              Contraseña
+              <input
+                type="password"
+                name="accountPassword"
+                [(ngModel)]="accountPassword"
+                autocomplete="current-password"
+                required
+              />
+            </label>
+            <button class="primary-button account-submit" type="submit" [disabled]="isSubmittingAccount">
+              {{ isSubmittingAccount ? 'Ingresando...' : 'Iniciar sesión' }}
+            </button>
+            <p class="account-switch">
+              ¿Aún no tienes cuenta?
+              <button type="button" (click)="setAccountMode('signup')">Regístrate</button>
+            </p>
+          </form>
+        } @else {
+          <form class="account-form" (ngSubmit)="saveAccountProfile()">
+            <label>
+              Nombre completo
+              <input
+                type="text"
+                name="accountName"
+                [(ngModel)]="accountName"
+                autocomplete="name"
+                minlength="2"
+                maxlength="80"
+                required
+              />
+            </label>
+            <label>
+              Correo electrónico
+              <input type="email" name="accountEmail" [ngModel]="accountEmail" readonly />
+            </label>
+            <label>
+              Teléfono
+              <input
+                type="tel"
+                name="accountPhone"
+                [(ngModel)]="accountPhone"
+                autocomplete="tel"
+                maxlength="20"
+                pattern="^[+0-9()\s-]*$"
+                placeholder="+57 300 123 4567"
+              />
+            </label>
+            <button class="primary-button account-submit" type="submit" [disabled]="isSubmittingAccount">
+              {{ isSubmittingAccount ? 'Guardando...' : 'Guardar mis datos' }}
+            </button>
+            <button class="account-signout" type="button" [disabled]="isSubmittingAccount" (click)="signOut()">
+              Cerrar sesión
+            </button>
+          </form>
+        }
+
+        @if (accountError) {
+          <p class="account-feedback account-error" role="alert">{{ accountError }}</p>
+        }
+        @if (accountMessage) {
+          <p class="account-feedback account-success" role="status">{{ accountMessage }}</p>
+        }
+      }
+    </section>
   </div>
 }
 

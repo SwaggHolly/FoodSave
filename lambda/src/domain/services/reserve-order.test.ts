@@ -29,7 +29,14 @@ function createRepository(availableProducts: Product[]) {
       availableProducts.filter((availableProduct) => ids.includes(availableProduct.id)),
     createOrder: async (order) => {
       createdOrders.push(order);
-    }
+    },
+    getUserProfile: async () => undefined,
+    saveUserProfile: async (sub, email, profile) => ({
+      sub,
+      email,
+      ...profile,
+      updatedAt: new Date().toISOString()
+    })
   };
   return { repository, createdOrders };
 }
@@ -59,6 +66,28 @@ test('uses the server price and records the reservation atomically', async () =>
   assert.equal(createdOrders.length, 1);
   assert.equal(createdOrders[0]?.items[0]?.unitPrice, 4800);
   assert.equal(createdOrders[0]?.items[0]?.quantity, 2);
+  assert.deepEqual(createdOrders[0]?.delivery, { method: 'pickup' });
+});
+
+test('stores the delivery address with the reservation', async () => {
+  const { repository, createdOrders } = createRepository([product]);
+  const delivery = {
+    method: 'delivery' as const,
+    city: 'Bogotá',
+    zone: 'Norte',
+    neighborhood: 'Chapinero',
+    address: 'Carrera 7 # 45-10',
+    reference: 'Torre 2'
+  };
+  const service = new ReserveOrderService(
+    repository,
+    () => new Date('2026-11-17T12:00:00.000Z'),
+    () => 'order-123'
+  );
+
+  await service.execute({ ...request, delivery });
+
+  assert.deepEqual(createdOrders[0]?.delivery, delivery);
 });
 
 test('rejects a reservation when stock is insufficient', async () => {
@@ -77,5 +106,20 @@ test('rejects products that no longer exist', async () => {
   const service = new ReserveOrderService(repository);
 
   await assert.rejects(service.execute(request), ProductNotFoundError);
+  assert.equal(createdOrders.length, 0);
+});
+
+test('rejects products that expire at the reservation time', async () => {
+  const expiringProduct = {
+    ...product,
+    expirationDate: '2026-11-17T12:00:00.000Z'
+  };
+  const { repository, createdOrders } = createRepository([expiringProduct]);
+  const service = new ReserveOrderService(
+    repository,
+    () => new Date('2026-11-17T12:00:00.000Z')
+  );
+
+  await assert.rejects(service.execute(request), InventoryConflictError);
   assert.equal(createdOrders.length, 0);
 });

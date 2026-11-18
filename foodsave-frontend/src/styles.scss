@@ -120,7 +120,7 @@ h1, h2, h3, p { margin-top: 0; }
 .drawer-header h2 { margin: 6px 0 0; color: #2d422f; font: 800 22px 'Manrope', sans-serif; }
 .drawer-header h2 span { color: #8a9685; font: 500 14px 'DM Sans', sans-serif; }
 .close-button { width: 35px; height: 35px; border: 1px solid #e8ebe4; border-radius: 50%; background: white; color: #657160; font-size: 23px; }
-.cart-items { flex: 1; overflow-y: auto; }
+.cart-items { flex: 1; min-height: 0; overflow-y: auto; }
 .cart-item { padding: 17px 0; display: grid; grid-template-columns: 68px minmax(0, 1fr) auto; align-items: start; gap: 12px; border-bottom: 1px solid #eff0eb; }
 .cart-item > img { width: 68px; height: 68px; border-radius: 8px; object-fit: cover; background: #eef2e9; }
 .cart-item-info h3 { margin: 2px 0 5px; color: #354337; font: 700 11px 'Manrope', sans-serif; }
@@ -131,12 +131,13 @@ h1, h2, h3, p { margin-top: 0; }
 .quantity-control span { min-width: 20px; text-align: center; color: #4e5e4d; font-size: 10px; }
 .cart-item-end { display: flex; flex-direction: column; align-items: end; gap: 10px; }
 .remove-button { padding: 0; border: 0; background: transparent; color: #a4786d; font-size: 9px; }
-.cart-summary { padding-top: 16px; border-top: 1px solid #e8ebe4; }
-.cart-summary > div { display: flex; justify-content: space-between; color: #53614f; font-size: 12px; }
-.cart-summary > div strong { color: #2e4a32; font-size: 16px; }
+.cart-summary { max-height: 52vh; padding-top: 16px; overflow-y: auto; border-top: 1px solid #e8ebe4; }
+.cart-summary > div:first-child { display: flex; justify-content: space-between; color: #53614f; font-size: 12px; }
+.cart-summary > div:first-child strong { color: #2e4a32; font-size: 16px; }
 .checkout-contact { margin-top: 15px; display: grid; gap: 10px; }
 .checkout-contact label { display: grid; gap: 5px; color: #647160; font-size: 10px; font-weight: 600; }
-.checkout-contact input { width: 100%; height: 38px; padding: 0 10px; border: 1px solid #e4e9df; border-radius: 7px; background: white; color: #435343; font-size: 11px; }
+.checkout-contact input, .checkout-contact select { width: 100%; height: 38px; padding: 0 10px; border: 1px solid #e4e9df; border-radius: 7px; background: white; color: #435343; font-size: 11px; }
+.delivery-fields { padding-top: 11px; display: grid; gap: 10px; border-top: 1px solid #eff0eb; }
 .checkout-contact input::placeholder { color: #a1a99e; }
 .cart-summary > small { display: block; margin: 10px 0 15px; color: #8a9285; font-size: 9px; line-height: 1.5; }
 .checkout-button { width: 100%; }

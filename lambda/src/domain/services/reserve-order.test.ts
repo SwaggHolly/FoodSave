@@ -78,10 +78,11 @@ test('uses the server price and records the reservation atomically', async () =>
 
   assert.deepEqual(receiptDetails, {
     orderId: 'order-123',
-    status: 'pending_payment',
+    status: 'reserved',
     total: 9600,
     createdAt: '2026-11-17T12:00:00.000Z',
-    paymentExpiresAt: '2026-11-17T12:15:00.000Z'
+    reservationExpiresAt: '2026-11-17T12:15:00.000Z',
+    items: [{ productId: 'apple-1', title: 'Manzanas rojas', quantity: 2, unitPrice: 4800, lineTotal: 9600 }]
   });
   assert.match(statusSubscriptionToken, /^[A-Za-z0-9_-]{43}$/);
   assert.equal(createdOrders.length, 1);
@@ -148,6 +149,15 @@ test('rejects products that expire at the reservation time', async () => {
     () => new Date('2026-11-17T12:00:00.000Z')
   );
 
+  await assert.rejects(service.execute(request), InventoryConflictError);
+  assert.equal(createdOrders.length, 0);
+});
+
+test('rejects a vegetable once its publication reaches the removal deadline', async () => {
+  const { repository, createdOrders } = createRepository([{
+    ...product, category: 'verduras', removeAt: '2026-11-17T12:00:00.000Z'
+  }]);
+  const service = new ReserveOrderService(repository, () => new Date('2026-11-17T12:00:00.000Z'));
   await assert.rejects(service.execute(request), InventoryConflictError);
   assert.equal(createdOrders.length, 0);
 });

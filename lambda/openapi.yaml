@@ -69,7 +69,7 @@ paths:
     post:
       summary: Crear una reserva de productos
       operationId: createOrder
-      description: Reserva inventario por 15 minutos e inicia el checkout en Mercado Pago.
+      description: Reserva inventario por 15 minutos sin procesar pagos.
       requestBody:
         required: true
         content:
@@ -99,18 +99,6 @@ paths:
                 $ref: '#/components/schemas/Error'
         '429':
           description: Se alcanzó el límite temporal de reservas.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '502':
-          description: No se pudo crear el checkout externo.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '503':
-          description: El servicio de pagos aún no está configurado.
           content:
             application/json:
               schema:
@@ -225,7 +213,7 @@ paths:
         '404':
           description: La cuenta aún no ha solicitado vender.
     post:
-      summary: Solicitar aprobación para vender
+      summary: Registrar una tienda para vender
       operationId: submitMerchantApplication
       security:
         - CognitoBearer: []
@@ -237,7 +225,7 @@ paths:
               $ref: '#/components/schemas/MerchantApplicationRequest'
       responses:
         '201':
-          description: Solicitud enviada para revisión manual.
+          description: Tienda registrada y activada automáticamente.
           content:
             application/json:
               schema:
@@ -313,6 +301,7 @@ paths:
   /merchant/products:
     post:
       summary: Publicar producto de un comercio aprobado
+      description: El vencimiento debe ser futuro y no superar 120 horas; para verduras, 48 horas. Las verduras se retiran tras 48 horas publicadas.
       operationId: createMerchantProduct
       security:
         - CognitoBearer: []
@@ -385,7 +374,7 @@ components:
   schemas:
     ProductCategory:
       type: string
-      enum: [frutas, panaderia, lacteos, sorpresa]
+      enum: [frutas, verduras, panaderia, lacteos, sorpresa]
     Product:
       type: object
       required:
@@ -514,25 +503,38 @@ components:
           maxLength: 160
     OrderReceipt:
       type: object
-      required: [orderId, status, total, createdAt, paymentExpiresAt, checkoutUrl, statusSubscriptionToken]
+      required: [orderId, status, total, createdAt, reservationExpiresAt, items, statusSubscriptionToken]
       properties:
         orderId:
           type: string
         status:
           type: string
-          enum: [pending_payment]
+          enum: [reserved]
         total:
           type: integer
           minimum: 0
         createdAt:
           type: string
           format: date-time
-        paymentExpiresAt:
+        reservationExpiresAt:
           type: string
           format: date-time
-        checkoutUrl:
-          type: string
-          format: uri
+        items:
+          type: array
+          items:
+            type: object
+            required: [productId, title, quantity, unitPrice, lineTotal]
+            properties:
+              productId:
+                type: string
+              title:
+                type: string
+              quantity:
+                type: integer
+              unitPrice:
+                type: integer
+              lineTotal:
+                type: integer
         statusSubscriptionToken:
           type: string
           description: Token privado para consultar y recibir actualizaciones del pedido.
@@ -544,7 +546,7 @@ components:
           type: string
         status:
           type: string
-          enum: [pending_payment, paid, expired, payment_late]
+          enum: [reserved, pending_payment, paid, expired, payment_late]
         paymentExpiresAt:
           type: string
           format: date-time

@@ -3,10 +3,10 @@ import {
   GoneException,
   PostToConnectionCommand
 } from '@aws-sdk/client-apigatewaymanagementapi';
-import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
+import { DynamoDBClient, type AttributeValue as DynamoAttributeValue } from '@aws-sdk/client-dynamodb';
 import { DeleteCommand, DynamoDBDocumentClient, QueryCommand } from '@aws-sdk/lib-dynamodb';
 import { SendEmailCommand, SESv2Client } from '@aws-sdk/client-sesv2';
-import type { DynamoDBStreamHandler } from 'aws-lambda';
+import type { AttributeValue as StreamAttributeValue, DynamoDBStreamHandler } from 'aws-lambda';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 import { orderSchema } from './src/domain/models/order.js';
 
@@ -15,6 +15,16 @@ const sesClient = new SESv2Client({});
 const connectionsTable = process.env['CONNECTIONS_TABLE'] ?? '';
 const fromEmail = process.env['NOTIFICATION_FROM_EMAIL'] ?? '';
 const websocketEndpoint = process.env['WEBSOCKET_MANAGEMENT_URL'] ?? '';
+
+function toDynamoAttribute(value: StreamAttributeValue): DynamoAttributeValue {
+  if (value.B !== undefined) return { B: Buffer.from(value.B, 'base64') };
+  if (value.BS !== undefined) return { BS: value.BS.map((item) => Buffer.from(item, 'base64')) };
+  if (value.L !== undefined) return { L: value.L.map(toDynamoAttribute) };
+  if (value.M !== undefined) {
+    return { M: Object.fromEntries(Object.entries(value.M).map(([key, item]) => [key, toDynamoAttribute(item)])) };
+  }
+  return value;
+}
 
 async function notifyConnectedClients(
   orderId: string,
@@ -93,7 +103,10 @@ export const handler: DynamoDBStreamHandler = async (event) => {
     if (!oldImage || !newImage) continue;
 
     const oldStatus = oldImage['status']?.S;
-    const parsedOrder = orderSchema.safeParse(unmarshall(newImage));
+    const image = Object.fromEntries(
+      Object.entries(newImage).map(([key, value]) => [key, toDynamoAttribute(value)])
+    );
+    const parsedOrder = orderSchema.safeParse(unmarshall(image));
     if (!parsedOrder.success || parsedOrder.data.status === oldStatus) continue;
 
     const order = parsedOrder.data;

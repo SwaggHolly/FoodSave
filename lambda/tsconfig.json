@@ -11,6 +11,13 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["handler.ts", "src/**/*.ts", "scripts/**/*.ts"],
+  "include": [
+    "handler.ts",
+    "expiration-handler.ts",
+    "notification-handler.ts",
+    "websocket-handler.ts",
+    "src/**/*.ts",
+    "scripts/**/*.ts"
+  ],
   "exclude": ["node_modules", "dist", "**/*.test.ts"]
 }

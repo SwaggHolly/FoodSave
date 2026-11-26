@@ -11,10 +11,11 @@
     <button
       class="account-button"
       type="button"
+      [class.account-signed]="account.user()"
       (click)="openAccount()"
       [attr.aria-label]="account.user() ? 'Abrir mi cuenta' : 'Crear una cuenta'"
     >
-      <span aria-hidden="true">👤</span>
+      <span [class.account-avatar]="account.user()" [class.account-mini]="account.user()" aria-hidden="true">{{ account.user() ? accountInitials : '👤' }}</span>
       <span>{{ account.user() ? 'Mi cuenta' : 'Crear cuenta' }}</span>
     </button>
     <button
@@ -35,6 +36,18 @@
     <div class="account-feedback account-success" role="status" aria-live="polite">
       {{ paymentStatusMessage }}
     </div>
+  }
+  @if (orderConfirmation && !orderConfirmationOpen) {
+    <section class="order-pending-banner" role="status">
+      <span class="order-pending-icon" aria-hidden="true">✓</span>
+      <div>
+        <strong>Reserva {{ orderConfirmation.receipt.orderId }} creada</strong>
+        <p>{{ orderReservationExpired ? 'El tiempo de la reserva ha vencido.' : 'Tus productos están reservados por 15 minutos.' }}</p>
+      </div>
+      <button type="button" class="primary-button" (click)="orderConfirmationOpen = true">
+        Ver resumen
+      </button>
+    </section>
   }
 
   <section class="hero" id="inicio">
@@ -87,7 +100,8 @@
 
     <div class="category-list" aria-label="Filtrar por categoría">
       <button type="button" [class.active]="selectedCategory === 'todos'" (click)="selectedCategory = 'todos'">Todo</button>
-      <button type="button" [class.active]="selectedCategory === 'frutas'" (click)="selectedCategory = 'frutas'">🍓 Frutas y verduras</button>
+      <button type="button" [class.active]="selectedCategory === 'frutas'" (click)="selectedCategory = 'frutas'">🍓 Frutas</button>
+      <button type="button" [class.active]="selectedCategory === 'verduras'" (click)="selectedCategory = 'verduras'">🥬 Verduras</button>
       <button type="button" [class.active]="selectedCategory === 'panaderia'" (click)="selectedCategory = 'panaderia'">🥐 Panadería</button>
       <button type="button" [class.active]="selectedCategory === 'lacteos'" (click)="selectedCategory = 'lacteos'">🥛 Lácteos</button>
       <button type="button" [class.active]="selectedCategory === 'sorpresa'" (click)="selectedCategory = 'sorpresa'">🎁 Sorpresas</button>
@@ -125,7 +139,7 @@
               </div>
               <div class="stock-row">
                 <span>{{ product.stock }} disponibles</span>
-                <button type="button" (click)="addToCart(product)" [disabled]="product.stock < 1">
+                <button type="button" (click)="addToCart(product)" [disabled]="product.stock < 1 || isSubmittingOrder">
                   Agregar <span aria-hidden="true">＋</span>
                 </button>
               </div>
@@ -179,14 +193,14 @@
                 <h3>{{ item.product.title }}</h3>
                 <span>{{ item.product.discountPrice | currency:'COP':'symbol-narrow':'1.0-0':'es-CO' }} c/u</span>
                 <div class="quantity-control">
-                  <button type="button" [attr.aria-label]="'Quitar una unidad de ' + item.product.title" (click)="changeQuantity(item.product.id, -1)">−</button>
+                  <button type="button" [attr.aria-label]="'Quitar una unidad de ' + item.product.title" [disabled]="isSubmittingOrder" (click)="changeQuantity(item.product.id, -1)">−</button>
                   <span>{{ item.quantity }}</span>
-                  <button type="button" [attr.aria-label]="'Agregar una unidad de ' + item.product.title" [disabled]="item.quantity >= item.product.stock" (click)="changeQuantity(item.product.id, 1)">+</button>
+                  <button type="button" [attr.aria-label]="'Agregar una unidad de ' + item.product.title" [disabled]="isSubmittingOrder || item.quantity >= item.product.stock" (click)="changeQuantity(item.product.id, 1)">+</button>
                 </div>
               </div>
               <div class="cart-item-end">
                 <strong>{{ item.product.discountPrice * item.quantity | currency:'COP':'symbol-narrow':'1.0-0':'es-CO' }}</strong>
-                <button type="button" class="remove-button" (click)="removeFromCart(item.product.id)">Quitar</button>
+                <button type="button" class="remove-button" [disabled]="isSubmittingOrder" (click)="removeFromCart(item.product.id)">Quitar</button>
               </div>
             </article>
           }
@@ -310,8 +324,11 @@
             } @else {
               El pedido reserva las unidades. La tienda coordinará contigo la recogida.
             }
-            No se procesa ningún pago en línea.
+            La reserva estará activa durante 15 minutos.
           </small>
+          @if (orderError) {
+            <p class="account-feedback account-error" role="alert">{{ orderError }}</p>
+          }
           <button
             type="button"
             class="primary-button checkout-button"
@@ -386,6 +403,13 @@
       } @else {
         @if (accountMode === 'signup') {
           <form class="account-form" (ngSubmit)="submitRegistration()">
+            <label>
+              Quiero usar FoodSave para
+              <select name="accountType" [(ngModel)]="accountType">
+                <option value="buyer">Comprar productos</option>
+                <option value="seller">Vender productos</option>
+              </select>
+            </label>
             <label>
               Nombre completo
               <input
@@ -526,6 +550,16 @@
           </form>
         } @else if (accountMode === 'profile') {
           <form class="account-form" (ngSubmit)="saveAccountProfile()">
+            <section class="account-profile-summary" aria-label="Resumen de tu cuenta">
+              <span class="account-avatar" aria-hidden="true">{{ accountInitials }}</span>
+              <div class="account-profile-identity">
+                <strong>{{ account.profile()?.name || accountName }}</strong>
+                <span>{{ account.profile()?.email || accountEmail }}</span>
+                <span>{{ account.profile()?.phone || accountPhone || 'Agrega tu teléfono de contacto' }}</span>
+                <span class="account-active-label"><span></span> Cuenta activa</span>
+              </div>
+            </section>
+            <p class="account-section-label">Información de tu perfil</p>
             <label>
               Nombre completo
               <input
@@ -554,6 +588,10 @@
                 placeholder="+57 300 123 4567"
               />
             </label>
+            <p class="account-profile-note">
+              Tu cuenta se identifica con <strong>{{ account.profile()?.email || accountEmail }}</strong>.
+              Puedes actualizar tu nombre y teléfono cuando lo necesites.
+            </p>
             <button class="primary-button account-submit" type="submit" [disabled]="isSubmittingAccount">
               {{ isSubmittingAccount ? 'Guardando...' : 'Guardar mis datos' }}
             </button>
@@ -566,9 +604,9 @@
               } @else if (account.merchant()?.status === 'rejected') {
                 <span>La solicitud no fue aprobada. Contacta al equipo para más información.</span>
               } @else if (account.merchant()?.status === 'approved') {
-                <span>Tu tienda está aprobada y puede publicar productos.</span>
+                <span>Tu tienda puede publicar productos.</span>
               } @else {
-                <span>Solicita aprobación para publicar tus ofertas.</span>
+                <span>Registra tu tienda para publicar tus ofertas.</span>
               }
               <button
                 type="button"
@@ -587,8 +625,8 @@
           @if (account.merchant()?.status === 'approved') {
             <form class="account-form" (ngSubmit)="submitMerchantProduct()">
               <p class="account-description">
-                Tienda aprobada: <strong>{{ account.merchant()?.storeName }}</strong>.
-                Las imágenes se guardan en privado y se muestran mediante enlaces temporales.
+                Publica en <strong>{{ account.merchant()?.storeName }}</strong>.
+                Completa la información de tu producto.
               </p>
               <label>
                 Nombre del producto
@@ -604,7 +642,8 @@
               <label>
                 Categoría
                 <select name="merchantProductCategory" [(ngModel)]="merchantProductCategory">
-                  <option value="frutas">Frutas y verduras</option>
+                  <option value="frutas">Frutas</option>
+                  <option value="verduras">Verduras</option>
                   <option value="panaderia">Panadería</option>
                   <option value="lacteos">Lácteos</option>
                   <option value="sorpresa">Sorpresas</option>
@@ -633,14 +672,18 @@
                 </label>
               </div>
               <label>
-                Fecha de vencimiento
+                Fecha y hora de vencimiento
                 <input
-                  type="date"
+                  type="datetime-local"
                   name="merchantExpirationDate"
                   [(ngModel)]="merchantExpirationDate"
                   required
                 />
               </label>
+              <small class="account-hint">
+                El producto debe vencer dentro de los próximos 5 días. Para verduras, el límite es de 2 días;
+                además, se eliminan 48 horas después de publicarse.
+              </small>
               <label>
                 Unidades disponibles
                 <input
@@ -686,7 +729,7 @@
             </div>
           } @else {
             <form class="account-form" (ngSubmit)="submitMerchantApplication()">
-              <p class="account-description">El equipo revisa cada comercio antes de publicar productos.</p>
+              <p class="account-description">Completa los datos de tu tienda para empezar a publicar.</p>
               <label>
                 Nombre de la tienda
                 <input type="text" name="merchantStoreName" [(ngModel)]="merchantStoreName" minlength="2" maxlength="100" required />
@@ -716,7 +759,7 @@
                 <textarea name="merchantDescription" [(ngModel)]="merchantDescription" maxlength="500" rows="3"></textarea>
               </label>
               <button class="primary-button account-submit" type="submit" [disabled]="isSubmittingAccount">
-                {{ isSubmittingAccount ? 'Enviando...' : 'Enviar solicitud' }}
+                {{ isSubmittingAccount ? 'Guardando...' : 'Crear mi tienda' }}
               </button>
             </form>
           }
@@ -732,6 +775,102 @@
           <p class="account-feedback account-success" role="status">{{ accountMessage }}</p>
         }
       }
+    </section>
+  </div>
+}
+
+@if (orderConfirmation && orderConfirmationOpen) {
+  <div
+    class="order-backdrop"
+    (click)="orderConfirmationOpen = false"
+    (keydown.escape)="orderConfirmationOpen = false"
+  >
+    <section
+      class="order-dialog"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="order-title"
+      (click)="$event.stopPropagation()"
+    >
+      <button
+        type="button"
+        class="close-button order-close"
+        aria-label="Cerrar resumen del pedido"
+        (click)="orderConfirmationOpen = false"
+      >×</button>
+      <div class="order-success-mark" aria-hidden="true">✓</div>
+      <span class="eyebrow order-eyebrow">RESERVA CREADA</span>
+      <h2 id="order-title">¡Tu pedido fue creado con éxito!</h2>
+      <p class="order-intro">
+        Gracias, {{ orderConfirmation.buyerName }}.
+        @if (orderReservationExpired) {
+          El tiempo de tu reserva ha vencido.
+        } @else {
+          Tus productos están reservados. La tienda coordinará contigo los siguientes pasos.
+        }
+      </p>
+
+      <div class="order-number-card">
+        <span>NÚMERO DE PEDIDO</span>
+        <strong>{{ orderConfirmation.receipt.orderId }}</strong>
+        <small>
+          Creado el {{ orderConfirmation.receipt.createdAt | date:'d MMM y, h:mm a':'':'es-CO' }}
+        </small>
+      </div>
+
+      <div class="order-items">
+        <h3>Resumen de tu pedido</h3>
+        @for (item of orderConfirmation.items; track item.productId) {
+          <div class="order-item">
+            <span>
+              {{ item.title }}
+              <small>{{ item.quantity }} × {{ item.unitPrice | currency:'COP':'symbol-narrow':'1.0-0':'es-CO' }}</small>
+            </span>
+            <strong>{{ item.lineTotal | currency:'COP':'symbol-narrow':'1.0-0':'es-CO' }}</strong>
+          </div>
+        }
+        <div class="order-total">
+          <span>Total a pagar</span>
+          <strong>{{ orderConfirmation.receipt.total | currency:'COP':'symbol-narrow':'1.0-0':'es-CO' }}</strong>
+        </div>
+      </div>
+
+      <div class="order-delivery">
+        <span aria-hidden="true">{{ orderConfirmation.delivery.method === 'delivery' ? '🚚' : '🛍️' }}</span>
+        <div>
+          <strong>{{ orderConfirmation.delivery.method === 'delivery' ? 'Entrega a domicilio' : 'Recogida en tienda' }}</strong>
+          @if (orderConfirmation.delivery.method === 'delivery') {
+            <small>
+              {{ orderConfirmation.delivery.address }},
+              {{ orderConfirmation.delivery.neighborhood }},
+              {{ orderConfirmation.delivery.city }}
+            </small>
+          } @else {
+            <small>La tienda coordinará contigo los detalles de la recogida.</small>
+          }
+        </div>
+      </div>
+
+      <div class="order-reservation-note" role="status">
+        @if (orderReservationExpired) {
+          <strong>Reserva vencida</strong>
+          <span>El plazo de la reserva terminó. Crea una nueva reserva si deseas continuar.</span>
+        } @else {
+          <strong>Reserva activa durante 15 minutos</strong>
+          <span>
+            Reservado hasta el
+            {{ orderConfirmation.receipt.reservationExpiresAt | date:'d MMM y, h:mm a':'':'es-CO' }}.
+            Después de ese momento, los productos volverán a estar disponibles.
+          </span>
+        }
+      </div>
+      <button
+        type="button"
+        class="order-continue-browsing"
+        (click)="orderConfirmationOpen = false"
+      >
+        Seguir explorando ofertas
+      </button>
     </section>
   </div>
 }

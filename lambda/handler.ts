@@ -29,6 +29,7 @@ import type { FoodSaveRepository } from './src/ports/output/foodsave-repository.
 import {
   merchantApplicationRequestSchema,
   merchantProductRequestSchema,
+  merchantProductExpirationError,
   MerchantApplicationAlreadyExistsError,
   MerchantNotApprovedError
 } from './src/domain/models/merchant.js';
@@ -273,12 +274,6 @@ export function createApiHandler(
         });
       }
 
-      if (!paymentGateway.isConfigured()) {
-        return jsonResponse(503, {
-          message: 'El pago en línea aún no está configurado. No se reservó inventario.'
-        });
-      }
-
       try {
         const withinRateLimit = await repository.consumeReservationRateLimit(
           event.requestContext.http.sourceIp,
@@ -289,37 +284,13 @@ export function createApiHandler(
             message: 'Hiciste varias reservas en poco tiempo. Espera unos minutos e intenta de nuevo.'
           });
         }
-        const order = await reserveOrder.createOrder(request.data);
-        const checkout = await paymentGateway.createCheckout(order);
-        await repository.attachPaymentPreference(
-          order.id,
-          checkout.preferenceId,
-          checkout.checkoutUrl
-        );
-        return jsonResponse(201, {
-          orderId: order.id,
-          status: order.status,
-          total: order.total,
-          createdAt: order.createdAt,
-          paymentExpiresAt: order.paymentExpiresAt,
-          statusSubscriptionToken: order.statusSubscriptionToken,
-          checkoutUrl: checkout.checkoutUrl
-        });
+        return jsonResponse(201, await reserveOrder.execute(request.data));
       } catch (error: unknown) {
         if (error instanceof ProductNotFoundError) {
           return jsonResponse(404, { message: error.message });
         }
         if (error instanceof InventoryConflictError) {
           return jsonResponse(409, { message: error.message });
-        }
-        if (error instanceof PaymentConfigurationError) {
-          return jsonResponse(503, { message: error.message });
-        }
-        if (error instanceof PaymentProviderError) {
-          console.error('No se pudo iniciar el checkout de Mercado Pago.', error);
-          return jsonResponse(502, {
-            message: 'No se pudo iniciar el pago. La reserva se liberará automáticamente al vencer.'
-          });
         }
         console.error('No se pudo reservar el pedido.', error);
         return jsonResponse(500, { message: 'No se pudo reservar el pedido.' });
@@ -501,6 +472,11 @@ export function createApiHandler(
           details: z.treeifyError(request.error)
         });
       }
+      const now = new Date();
+      const expirationError = merchantProductExpirationError(request.data, now);
+      if (expirationError) {
+        return jsonResponse(400, { message: expirationError });
+      }
       if (!request.data.imageKey.startsWith(`merchant-images/${sub}/`)) {
         return jsonResponse(400, { message: 'La imagen no pertenece a este comercio.' });
       }
@@ -517,6 +493,10 @@ export function createApiHandler(
           discountPrice: request.data.discountPrice,
           expirationDate: request.data.expirationDate,
           stock: request.data.stock,
+          publishedAt: now.toISOString(),
+          ...(request.data.category === 'verduras'
+            ? { removeAt: new Date(now.getTime() + 2 * 86_400_000).toISOString() }
+            : {}),
           imageUrl: await imageStorage.createReadUrl(request.data.imageKey),
           imageKey: request.data.imageKey,
           merchantId: sub

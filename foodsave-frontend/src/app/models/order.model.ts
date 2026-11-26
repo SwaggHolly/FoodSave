@@ -23,10 +23,16 @@ export interface CreateOrderRequest {
 
 export interface OrderReceipt {
   orderId: string;
-  status: 'pending_payment';
+  status: 'reserved';
   total: number;
   createdAt: string;
-  paymentExpiresAt: string;
+  reservationExpiresAt: string;
   statusSubscriptionToken: string;
-  checkoutUrl: string;
+  items: Array<{
+    productId: string;
+    title: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+  }>;
 }

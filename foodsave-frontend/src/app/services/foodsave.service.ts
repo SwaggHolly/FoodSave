@@ -7,12 +7,13 @@ import { Product, ProtocolStatus } from '../models/product.model';
 
 export interface OrderStatusUpdate {
   orderId: string;
-  status: 'pending_payment' | 'paid' | 'expired' | 'payment_late';
+  status: 'reserved' | 'pending_payment' | 'paid' | 'expired' | 'payment_late';
   paymentExpiresAt: string;
 }
 
 function isOrderStatus(status: unknown): status is OrderStatusUpdate['status'] {
   return (
+    status === 'reserved' ||
     status === 'pending_payment' ||
     status === 'paid' ||
     status === 'expired' ||

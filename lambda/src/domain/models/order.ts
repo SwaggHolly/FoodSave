@@ -66,7 +66,7 @@ export const orderSchema = z.object({
   privacyPolicyVersion: z.string(),
   privacyAcceptedAt: z.string().datetime(),
   delivery: deliveryDetailsSchema.optional(),
-  status: z.enum(['pending_payment', 'paid', 'expired', 'payment_late']),
+  status: z.enum(['reserved', 'pending_payment', 'paid', 'expired', 'payment_late']),
   items: z.array(orderLineSchema),
   total: z.number().int().nonnegative(),
   createdAt: z.string().datetime(),
@@ -95,7 +95,7 @@ export interface Order {
   privacyPolicyVersion: string;
   privacyAcceptedAt: string;
   delivery?: DeliveryDetails;
-  status: 'pending_payment' | 'paid' | 'expired' | 'payment_late';
+  status: 'reserved' | 'pending_payment' | 'paid' | 'expired' | 'payment_late';
   items: OrderLine[];
   total: number;
   createdAt: string;
@@ -111,9 +111,10 @@ export interface Order {
 
 export interface OrderReceipt {
   orderId: string;
-  status: 'pending_payment';
+  status: 'reserved';
   total: number;
   createdAt: string;
-  paymentExpiresAt: string;
+  reservationExpiresAt: string;
+  items: OrderLine[];
   statusSubscriptionToken: string;
 }

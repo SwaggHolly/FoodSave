@@ -2,7 +2,7 @@ export interface Product {
   id: string;
   title: string;
   storeName: string;
-  category: 'frutas' | 'panaderia' | 'lacteos' | 'sorpresa';
+  category: 'frutas' | 'verduras' | 'panaderia' | 'lacteos' | 'sorpresa';
   originalPrice: number;
   discountPrice: number;
   expirationDate: string;

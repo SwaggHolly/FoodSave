@@ -39,6 +39,19 @@ interface SavedCartItem {
   quantity: number;
 }
 
+interface OrderConfirmation {
+  receipt: OrderReceipt;
+  buyerName: string;
+  delivery: OrderDelivery;
+  items: Array<{
+    productId: string;
+    title: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+  }>;
+}
+
 type CategoryFilter = 'todos' | Product['category'];
 type AccountMode = 'signup' | 'confirm' | 'signin' | 'profile' | 'merchant';
 
@@ -57,6 +70,8 @@ export class AppComponent implements OnDestroy {
   cartOpen = false;
   accountOpen = false;
   accountMode: AccountMode = 'signup';
+  accountType: 'buyer' | 'seller' = 'buyer';
+  private sellerRegistrationEmail = '';
   accountName = '';
   accountEmail = '';
   accountPhone = '';
@@ -84,6 +99,10 @@ export class AppComponent implements OnDestroy {
   isSubmittingAccount = false;
   notice = '';
   paymentStatusMessage = '';
+  orderConfirmation: OrderConfirmation | null = null;
+  orderConfirmationOpen = false;
+  orderReservationExpired = false;
+  orderError = '';
   isLoadingProducts = true;
   catalogError = '';
   buyerName = '';
@@ -99,6 +118,7 @@ export class AppComponent implements OnDestroy {
   isSubmittingOrder = false;
   private readonly storageKey = 'foodsave-cart';
   private noticeTimeout?: ReturnType<typeof setTimeout>;
+  private orderExpirationTimeout?: ReturnType<typeof setTimeout>;
   private paymentStatusSubscription?: Subscription;
   private paymentStatus?: OrderStatusUpdate['status'];
   private paymentOrderId?: string;
@@ -125,6 +145,7 @@ export class AppComponent implements OnDestroy {
   ngOnDestroy(): void {
     this.paymentStatusSubscription?.unsubscribe();
     if (this.noticeTimeout) clearTimeout(this.noticeTimeout);
+    if (this.orderExpirationTimeout) clearTimeout(this.orderExpirationTimeout);
   }
 
   reloadProducts(): void {
@@ -172,6 +193,9 @@ export class AppComponent implements OnDestroy {
         password: this.accountPassword,
         privacyPolicyVersion: PRIVACY_POLICY_VERSION
       });
+      this.sellerRegistrationEmail = this.accountType === 'seller'
+        ? this.accountEmail.trim().toLowerCase()
+        : '';
       this.accountMode = 'confirm';
       this.accountMessage = 'Te enviamos un código de verificación a tu correo.';
     } catch (error: unknown) {
@@ -230,9 +254,21 @@ export class AppComponent implements OnDestroy {
       this.buyerName = profile.name;
       this.buyerPhone = profile.phone;
       this.buyerEmail = profile.email;
-      this.accountOpen = false;
+      this.accountMode = 'profile';
+      this.accountName = profile.name;
+      this.accountEmail = profile.email;
+      this.accountPhone = profile.phone;
+      this.merchantOwnerName = profile.name;
+      this.merchantEmail = profile.email;
+      this.merchantPhone = profile.phone;
       this.accountPassword = '';
-      this.showNotice(`¡Bienvenido, ${profile.name}!`);
+      this.accountMessage = `Sesión iniciada. Bienvenido${profile.name.trim() ? `, ${profile.name.trim()}` : ''}.`;
+      await this.refreshMerchantApplication();
+      if (this.sellerRegistrationEmail === profile.email.trim().toLowerCase()) {
+        this.accountMode = 'merchant';
+        this.accountMessage = 'Completa los datos de tu tienda para comenzar a vender.';
+        this.sellerRegistrationEmail = '';
+      }
     } catch (error: unknown) {
       this.accountError = this.accountErrorMessage(error);
       if (this.account.user()) {
@@ -260,8 +296,10 @@ export class AppComponent implements OnDestroy {
       const saved = await this.account.saveProfile(profile);
       this.buyerName = saved.name;
       this.buyerPhone = saved.phone;
-      this.accountOpen = false;
-      this.showNotice('Tus datos se guardaron correctamente.');
+      this.accountName = saved.name;
+      this.accountEmail = saved.email;
+      this.accountPhone = saved.phone;
+      this.accountMessage = 'Tus datos se guardaron correctamente.';
     } catch (error: unknown) {
       this.accountError = this.accountErrorMessage(error);
     } finally {
@@ -285,7 +323,7 @@ export class AppComponent implements OnDestroy {
         description: this.merchantDescription.trim()
       };
       await this.account.submitMerchantApplication(request);
-      this.accountMessage = 'Solicitud enviada. Te avisaremos cuando el equipo la revise.';
+      this.accountMessage = 'Tu tienda está lista. Ya puedes publicar productos.';
     } catch (error: unknown) {
       this.accountError = this.accountErrorMessage(error);
     } finally {
@@ -311,6 +349,13 @@ export class AppComponent implements OnDestroy {
       this.accountError = 'La imagen no puede superar 5 MB.';
       return;
     }
+    const expires = new Date(this.merchantExpirationDate);
+    const remaining = expires.getTime() - Date.now();
+    const days = this.merchantProductCategory === 'verduras' ? 2 : 5;
+    if (!Number.isFinite(remaining) || remaining <= 0 || remaining > days * 86_400_000) {
+      this.accountError = `El vencimiento debe ser futuro y ocurrir dentro de ${days} días.`;
+      return;
+    }
     this.isSubmittingAccount = true;
     try {
       const imageKey = await this.account.uploadMerchantImage(this.merchantImageFile);
@@ -319,9 +364,7 @@ export class AppComponent implements OnDestroy {
         category: this.merchantProductCategory,
         originalPrice: this.merchantOriginalPrice,
         discountPrice: this.merchantDiscountPrice,
-        expirationDate: new Date(
-          `${this.merchantExpirationDate}T23:59:59.000Z`
-        ).toISOString(),
+        expirationDate: expires.toISOString(),
         stock: this.merchantProductStock,
         imageKey
       };
@@ -329,6 +372,7 @@ export class AppComponent implements OnDestroy {
       this.accountMessage = 'Producto publicado correctamente.';
       this.merchantProductTitle = '';
       this.merchantImageFile = null;
+      this.loadProducts();
       this.showNotice('Tu producto ya aparece en el catálogo.');
     } catch (error: unknown) {
       this.accountError = this.accountErrorMessage(error);
@@ -408,6 +452,7 @@ export class AppComponent implements OnDestroy {
 
   private updatePaymentStatus(update: OrderStatusUpdate): void {
     const statusRank: Record<OrderStatusUpdate['status'], number> = {
+      reserved: 0,
       pending_payment: 0,
       expired: 1,
       paid: 2,
@@ -421,6 +466,9 @@ export class AppComponent implements OnDestroy {
     }
     this.paymentStatus = update.status;
     switch (update.status) {
+      case 'reserved':
+        this.paymentStatusMessage = 'Tu reserva está activa por 15 minutos.';
+        return;
       case 'paid':
         this.paymentStatusMessage = '¡Pago confirmado! Tu pedido quedó reservado.';
         break;
@@ -529,6 +577,7 @@ export class AppComponent implements OnDestroy {
   }
 
   addToCart(product: Product): void {
+    if (this.isSubmittingOrder) return;
     const item = this.cartItems.find((cartItem) => cartItem.product.id === product.id);
     if (item) {
       if (item.quantity >= product.stock) {
@@ -545,6 +594,7 @@ export class AppComponent implements OnDestroy {
   }
 
   changeQuantity(productId: string, change: number): void {
+    if (this.isSubmittingOrder) return;
     const item = this.cartItems.find((cartItem) => cartItem.product.id === productId);
     if (!item) return;
 
@@ -563,12 +613,25 @@ export class AppComponent implements OnDestroy {
   }
 
   removeFromCart(productId: string): void {
+    if (this.isSubmittingOrder) return;
     this.cartItems = this.cartItems.filter((item) => item.product.id !== productId);
     this.persistCart();
   }
 
+  get accountInitials(): string {
+    const name = this.account.profile()?.name?.trim();
+    return name
+      ? name
+          .split(/\s+/)
+          .slice(0, 2)
+          .map((part) => part.charAt(0).toLocaleUpperCase('es'))
+          .join('')
+      : 'FS';
+  }
+
   finishOrder(): void {
     if (this.cartItems.length === 0 || this.isSubmittingOrder) return;
+    this.orderError = '';
     if (!this.buyerName.trim() || !this.buyerPhone.trim()) {
       this.showNotice('Completa tu nombre y teléfono para reservar el pedido.');
       return;
@@ -593,6 +656,13 @@ export class AppComponent implements OnDestroy {
       return;
     }
 
+    const items = this.cartItems.map(({ product, quantity }) => ({
+      productId: product.id,
+      title: product.title,
+      quantity,
+      unitPrice: product.discountPrice,
+      lineTotal: product.discountPrice * quantity
+    }));
     const request: CreateOrderRequest = {
       buyerName: this.buyerName.trim(),
       buyerPhone: this.buyerPhone.trim(),
@@ -609,8 +679,8 @@ export class AppComponent implements OnDestroy {
               address: this.deliveryAddress.trim(),
               reference: this.deliveryReference.trim()
             },
-      items: this.cartItems.map(({ product, quantity }) => ({
-        productId: product.id,
+      items: items.map(({ productId, quantity }) => ({
+        productId,
         quantity
       }))
     };
@@ -618,18 +688,29 @@ export class AppComponent implements OnDestroy {
     this.isSubmittingOrder = true;
     this.foodSave.createOrder(request).subscribe({
       next: (receipt: OrderReceipt) => {
+        this.orderConfirmation = {
+          receipt,
+          buyerName: request.buyerName,
+          delivery: request.delivery ?? { method: 'pickup' },
+          items: receipt.items
+        };
+        this.orderConfirmationOpen = true;
+        if (this.orderExpirationTimeout) clearTimeout(this.orderExpirationTimeout);
+        const remaining = Date.parse(receipt.reservationExpiresAt) - Date.now();
+        this.orderReservationExpired = remaining <= 0;
+        if (!this.orderReservationExpired) {
+          this.orderExpirationTimeout = setTimeout(() => {
+            this.orderReservationExpired = true;
+            this.changeDetector.markForCheck();
+          }, remaining);
+        }
         this.cartItems = [];
         this.persistCart();
         this.cartOpen = false;
-        this.buyerName = '';
-        this.buyerPhone = '';
+        this.buyerName = this.account.profile()?.name ?? '';
+        this.buyerPhone = this.account.profile()?.phone ?? '';
         this.isSubmittingOrder = false;
         this.loadProducts();
-        this.showNotice(
-          this.deliveryMethod === 'delivery'
-            ? `Reserva ${receipt.orderId} creada. Mercado Pago retendrá las unidades por 15 minutos. La tienda confirmará el domicilio.`
-            : `Reserva ${receipt.orderId} creada. Completa el pago en Mercado Pago dentro de 15 minutos.`
-        );
         try {
           sessionStorage.setItem(
             `foodsave-order-${receipt.orderId}`,
@@ -638,7 +719,6 @@ export class AppComponent implements OnDestroy {
         } catch (error: unknown) {
           console.error('No se pudo guardar el token temporal del pedido.', error);
         }
-        this.navigateToPayment(receipt.checkoutUrl);
         this.changeDetector.markForCheck();
       },
       error: (error: unknown) => {
@@ -646,7 +726,7 @@ export class AppComponent implements OnDestroy {
         if (error instanceof HttpErrorResponse && error.status === 409) {
           this.loadProducts();
         }
-        this.showNotice(this.apiErrorMessage(error));
+        this.orderError = this.apiErrorMessage(error);
         this.changeDetector.markForCheck();
       }
     });
@@ -666,12 +746,6 @@ export class AppComponent implements OnDestroy {
     if (event.target instanceof HTMLImageElement) {
       event.target.src =
         'data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 640 420%22%3E%3Crect width=%22640%22 height=%22420%22 fill=%22%23edf3e8%22/%3E%3Ctext x=%2250%25%22 y=%2253%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2280%22%3E%F0%9F%A5%AC%3C/text%3E%3C/svg%3E';
-    }
-  }
-
-  navigateToPayment(checkoutUrl: string): void {
-    if (isPlatformBrowser(this.platformId)) {
-      window.location.assign(checkoutUrl);
     }
   }
 

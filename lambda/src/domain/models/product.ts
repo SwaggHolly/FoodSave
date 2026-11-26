@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-export const PRODUCT_CATEGORIES = ['frutas', 'panaderia', 'lacteos', 'sorpresa'] as const;
+export const PRODUCT_CATEGORIES = ['frutas', 'verduras', 'panaderia', 'lacteos', 'sorpresa'] as const;
 
 export const productSchema = z.object({
   id: z.string().min(1),
@@ -12,6 +12,8 @@ export const productSchema = z.object({
   expirationDate: z.iso.datetime(),
   stock: z.number().int().nonnegative(),
   imageUrl: z.url(),
+  publishedAt: z.iso.datetime().optional(),
+  removeAt: z.iso.datetime().optional(),
   merchantId: z.string().optional(),
   imageKey: z.string().optional()
 }).refine((product) => product.discountPrice < product.originalPrice, {

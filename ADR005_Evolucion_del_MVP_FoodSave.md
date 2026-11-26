@@ -1,7 +1,12 @@
 # ADR 005: Evolución funcional y operativa del MVP FoodSave
 
-- **Estado:** Aprobado; implementación preparada, despliegue pendiente.
+- **Estado:** Parcialmente sustituido para reservas nuevas.
 - **Fecha:** 18 de noviembre de 2026.
+
+**Actualización del 21 de noviembre de 2026:** los pedidos nuevos ya no usan
+checkout ni requieren pago; conservan la reserva de inventario durante 15 minutos.
+El webhook de Mercado Pago permanece para compatibilidad con pedidos anteriores.
+El entorno de staging está desplegado; esto no constituye validación de producción.
 
 ## Contexto
 

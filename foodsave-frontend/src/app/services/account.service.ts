@@ -258,16 +258,20 @@ export class AccountService {
     }
     this.authModule ??= Promise.all([
       import('@aws-amplify/auth'),
-      import('@aws-amplify/core')
-    ]).then(([auth, { Amplify }]) => {
-      Amplify.configure({
-        Auth: {
-          Cognito: {
-            userPoolId: environment.cognito.userPoolId,
-            userPoolClientId: environment.cognito.userPoolClientId
-          }
+      import('@aws-amplify/core'),
+      import('@aws-amplify/auth/cognito')
+    ]).then(([auth, { Amplify }, { cognitoUserPoolsTokenProvider }]) => {
+      const authConfig = {
+        Cognito: {
+          userPoolId: environment.cognito.userPoolId,
+          userPoolClientId: environment.cognito.userPoolClientId
         }
-      });
+      };
+      cognitoUserPoolsTokenProvider.setAuthConfig(authConfig);
+      Amplify.configure(
+        { Auth: authConfig },
+        { Auth: { tokenProvider: cognitoUserPoolsTokenProvider } }
+      );
       return auth;
     });
     return this.authModule;

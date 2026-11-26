@@ -45,6 +45,18 @@ export type MerchantApplicationRequest = z.infer<
 export type MerchantApplication = z.infer<typeof merchantApplicationSchema>;
 export type MerchantProductRequest = z.infer<typeof merchantProductRequestSchema>;
 
+export function merchantProductExpirationError(
+  product: Pick<MerchantProductRequest, 'category' | 'expirationDate'>,
+  now: Date
+): string | undefined {
+  const remaining = Date.parse(product.expirationDate) - now.getTime();
+  const days = product.category === 'verduras' ? 2 : 5;
+  if (!Number.isFinite(remaining) || remaining <= 0 || remaining > days * 86_400_000) {
+    return `El vencimiento debe ser futuro y ocurrir dentro de ${days} días.`;
+  }
+  return undefined;
+}
+
 export class MerchantApplicationAlreadyExistsError extends Error {
   constructor() {
     super('Ya existe una solicitud de comercio para esta cuenta.');

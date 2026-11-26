@@ -101,11 +101,20 @@ Resources:
                 - dynamodb:UpdateItem
               Resource:
                 - !GetAtt FoodSaveOrders.Arn
+                - !GetAtt FoodSaveProducts.Arn
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+                - dynamodb:ConditionCheckItem
+              Resource:
+                - !GetAtt FoodSaveOrders.Arn
+                - !GetAtt FoodSaveProducts.Arn
             - Effect: Allow
               Action:
                 - dynamodb:GetItem
                 - dynamodb:PutItem
                 - dynamodb:UpdateItem
+                - dynamodb:ConditionCheckItem
               Resource:
                 - !GetAtt FoodSaveUsers.Arn
                 - !GetAtt FoodSaveMerchants.Arn
@@ -229,6 +238,18 @@ Resources:
                 - !GetAtt FoodSaveOrders.Arn
                 - !Sub '${FoodSaveOrders.Arn}/index/*'
                 - !GetAtt FoodSaveProducts.Arn
+                - !Sub '${FoodSaveProducts.Arn}/index/*'
+            - Effect: Allow
+              Action:
+                - dynamodb:UpdateItem
+              Resource:
+                - !GetAtt FoodSaveOrders.Arn
+                - !GetAtt FoodSaveProducts.Arn
+            - Effect: Allow
+              Action:
+                - dynamodb:DeleteItem
+                - dynamodb:ConditionCheckItem
+              Resource: !GetAtt FoodSaveProducts.Arn
       Events:
         ExpireReservations:
           Type: Schedule

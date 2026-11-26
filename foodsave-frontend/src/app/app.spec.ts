@@ -1,10 +1,11 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, of, Subject, throwError } from 'rxjs';
 import { AppComponent } from './app.component';
 import { CreateOrderRequest, OrderReceipt } from './models/order.model';
 import { PRIVACY_POLICY_VERSION } from './models/privacy-policy';
 import { Product } from './models/product.model';
+import { UserProfile } from './models/user-profile.model';
 import { AccountService } from './services/account.service';
 import { FoodsaveService } from './services/foodsave.service';
 
@@ -81,6 +82,8 @@ describe('AppComponent', () => {
   let submittedOrders: CreateOrderRequest[];
   let productResponses: Observable<Product[]>[];
   let orderResponse: Observable<OrderReceipt>;
+  let signedInProfile: UserProfile | null;
+  let signedInUser: { sub: string; email: string } | null;
   let registrationRequests: Array<{
     name: string;
     email: string;
@@ -102,15 +105,17 @@ describe('AppComponent', () => {
     sessionStorage.clear();
     submittedOrders = [];
     registrationRequests = [];
+    signedInProfile = null;
+    signedInUser = null;
     productResponses = [of(demoProducts)];
     orderResponse = of({
       orderId: 'order-123',
-      status: 'pending_payment',
+      status: 'reserved',
       total: 4800,
       createdAt: '2026-11-17T12:00:00.000Z',
-      paymentExpiresAt: '2026-11-17T12:15:00.000Z',
+      reservationExpiresAt: new Date(Date.now() + 15 * 60_000).toISOString(),
       statusSubscriptionToken: 'private-token',
-      checkoutUrl: 'https://mercadopago.example/checkout'
+      items: [{ productId: '1', title: 'Manzanas rojas frescas', quantity: 1, unitPrice: 4800, lineTotal: 4800 }]
     });
     await TestBed.configureTestingModule({
       imports: [AppComponent],
@@ -129,8 +134,9 @@ describe('AppComponent', () => {
         {
           provide: AccountService,
           useValue: {
-            user: () => null,
-            profile: () => null,
+            user: () => signedInUser,
+            profile: () => signedInProfile,
+            merchant: () => null,
             isConfigured: true,
             restoreSession: async () => null,
             register: async (details: {
@@ -141,7 +147,29 @@ describe('AppComponent', () => {
               privacyPolicyVersion: string;
             }) => {
               registrationRequests.push(details);
-            }
+            },
+            signInWithEmail: async (credentials: { email: string }) => {
+              signedInProfile = {
+                sub: 'user-123',
+                name: 'Ana Pérez',
+                email: credentials.email,
+                phone: '+573001234567',
+                updatedAt: '2026-11-18T12:00:00.000Z'
+              };
+              signedInUser = { sub: 'user-123', email: credentials.email };
+              return signedInProfile;
+            },
+            saveProfile: async (profile: { name: string; phone: string }) => {
+              signedInProfile = {
+                sub: 'user-123',
+                name: profile.name,
+                email: signedInUser?.email ?? 'ana@example.com',
+                phone: profile.phone,
+                updatedAt: '2026-11-18T12:00:00.000Z'
+              };
+              return signedInProfile;
+            },
+            loadMerchantApplication: async () => null
           }
         }
       ]
@@ -153,6 +181,33 @@ describe('AppComponent', () => {
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('h1')?.textContent).toContain('Rescata comida.');
     expect(compiled.querySelectorAll('.product-card').length).toBe(demoProducts.length);
+  });
+
+  it('offers seller registration and opens the store form after sign in', async () => {
+    const fixture = await createLoadedApp();
+    const app = fixture.componentInstance;
+    (fixture.nativeElement.querySelector('[aria-label="Crear una cuenta"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('select[name="accountType"]')?.textContent).toContain('Vender productos');
+    app.accountType = 'seller';
+    app.accountName = 'Ana Pérez';
+    app.accountEmail = 'ana@example.com';
+    app.accountPassword = 'Password1';
+    app.accountPrivacyAccepted = true;
+    await app.submitRegistration();
+    await app.submitSignIn();
+    expect(app.accountMode).toBe('merchant');
+    expect(app.accountMessage).toContain('tienda');
+  });
+
+  it('rejects vegetables outside the two-day window before uploading an image', async () => {
+    const fixture = await createLoadedApp();
+    const app = fixture.componentInstance;
+    app.merchantProductCategory = 'verduras';
+    app.merchantExpirationDate = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    app.merchantImageFile = new File(['image'], 'food.png', { type: 'image/png' });
+    await app.submitMerchantProduct();
+    expect(app.accountError).toContain('2 días');
   });
 
   it('adds products to the cart and updates the total', async () => {
@@ -216,10 +271,8 @@ describe('AppComponent', () => {
     app.buyerName = 'Ana Pérez';
     app.buyerPhone = '+573001234567';
     app.orderPrivacyAccepted = true;
-    const checkoutUrls: string[] = [];
-    app.navigateToPayment = (url) => checkoutUrls.push(url);
-
     app.finishOrder();
+    fixture.detectChanges();
 
     expect(submittedOrders).toEqual([
       {
@@ -232,7 +285,21 @@ describe('AppComponent', () => {
     ]);
     expect(app.cartItems).toHaveLength(0);
     expect(app.cartOpen).toBe(false);
-    expect(checkoutUrls).toEqual(['https://mercadopago.example/checkout']);
+    expect(app.orderConfirmationOpen).toBe(true);
+    expect(app.orderConfirmation?.receipt.orderId).toBe('order-123');
+    expect(app.orderConfirmation?.items).toEqual([
+      {
+        productId: '1',
+        title: 'Manzanas rojas frescas',
+        quantity: 1,
+        unitPrice: 4800,
+        lineTotal: 4800
+      }
+    ]);
+    expect(fixture.nativeElement.textContent).toContain('¡Tu pedido fue creado con éxito!');
+    expect(fixture.nativeElement.textContent).toContain('order-123');
+    expect(fixture.nativeElement.textContent).toContain('Reserva activa durante 15 minutos');
+    expect(fixture.nativeElement.textContent).not.toContain('Continuar al pago');
     expect(sessionStorage.getItem('foodsave-order-order-123')).toBe('private-token');
   });
 
@@ -246,6 +313,55 @@ describe('AppComponent', () => {
     expect(submittedOrders).toHaveLength(0);
     expect(app.cartItems).toHaveLength(1);
     expect(app.notice).toContain('Completa tu nombre y teléfono');
+  });
+
+  it('prevents cart changes while an order is being created', async () => {
+    const response = new Subject<OrderReceipt>();
+    orderResponse = response;
+    const fixture = await createLoadedApp();
+    const app = fixture.componentInstance;
+    app.addToCart(demoProducts[0]);
+    app.buyerName = 'Ana Pérez';
+    app.buyerPhone = '+573001234567';
+    app.orderPrivacyAccepted = true;
+
+    app.finishOrder();
+    app.addToCart(demoProducts[1]);
+    app.changeQuantity('1', 1);
+    app.removeFromCart('1');
+
+    expect(app.cartItems.map(({ product, quantity }) => [product.id, quantity])).toEqual([['1', 1]]);
+    response.next({
+      orderId: 'order-123',
+      status: 'reserved',
+      total: 4800,
+      createdAt: new Date().toISOString(),
+      reservationExpiresAt: new Date(Date.now() + 60_000).toISOString(),
+      statusSubscriptionToken: 'private-token',
+      items: [{ productId: '1', title: 'Manzanas rojas frescas', quantity: 1, unitPrice: 4800, lineTotal: 4800 }]
+    });
+    expect(app.orderConfirmation?.items[0].quantity).toBe(1);
+  });
+
+  it('shows when a reservation has expired', async () => {
+    orderResponse = of({
+      orderId: 'expired-order',
+      status: 'reserved',
+      total: 4800,
+      createdAt: new Date(Date.now() - 120_000).toISOString(),
+      reservationExpiresAt: new Date(Date.now() - 60_000).toISOString(),
+      statusSubscriptionToken: 'private-token',
+      items: [{ productId: '1', title: 'Manzanas rojas frescas', quantity: 1, unitPrice: 4800, lineTotal: 4800 }]
+    });
+    const fixture = await createLoadedApp();
+    const app = fixture.componentInstance;
+    app.addToCart(demoProducts[0]);
+    app.buyerName = 'Ana Pérez';
+    app.buyerPhone = '+573001234567';
+    app.orderPrivacyAccepted = true;
+    app.finishOrder();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.textContent).toContain('Reserva vencida');
   });
 
   it('requires privacy acceptance before creating a reservation', async () => {
@@ -323,7 +439,7 @@ describe('AppComponent', () => {
     expect(app.products).toEqual([refreshedProduct]);
     expect(app.cartItems).toHaveLength(1);
     expect(app.isSubmittingOrder).toBe(false);
-    expect(app.notice).toBe('Inventario cambió.');
+    expect(app.orderError).toBe('Inventario cambió.');
   });
 
   it('shows a recoverable message when the catalog API is unavailable', async () => {
@@ -371,5 +487,39 @@ describe('AppComponent', () => {
 
     expect(registrationRequests).toHaveLength(0);
     expect(app.accountError).toContain('aceptar la política de privacidad');
+  });
+
+  it('shows the signed-in customer profile after login', async () => {
+    const fixture = await createLoadedApp();
+    const app = fixture.componentInstance;
+    app.openAccount();
+    app.setAccountMode('signin');
+    app.accountEmail = 'ana@example.com';
+    app.accountPassword = 'Comida2026';
+    app.accountPrivacyAccepted = true;
+
+    const accountButton = fixture.nativeElement.querySelector('.account-button') as HTMLButtonElement;
+    expect(accountButton.textContent).toContain('Crear cuenta');
+    await app.submitSignIn();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(app.accountOpen).toBe(true);
+    expect(app.accountMode).toBe('profile');
+    expect(app.account.profile()?.name).toBe('Ana Pérez');
+    expect(fixture.nativeElement.textContent).toContain('Ana Pérez');
+    expect(fixture.nativeElement.textContent).toContain('ana@example.com');
+    expect(fixture.nativeElement.textContent).toContain('+573001234567');
+    expect(fixture.nativeElement.textContent).toContain('Cuenta activa');
+    expect(accountButton.textContent).toContain('Mi cuenta');
+    expect(accountButton.textContent).toContain('AP');
+    expect(accountButton.classList.contains('account-signed')).toBe(true);
+
+    (fixture.nativeElement.querySelector('[aria-label="Cerrar cuenta"]') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    accountButton.click();
+    fixture.detectChanges();
+    expect(app.accountMode).toBe('profile');
+    expect(fixture.nativeElement.querySelector('[aria-label="Resumen de tu cuenta"]')).not.toBeNull();
   });
 });

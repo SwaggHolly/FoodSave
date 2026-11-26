@@ -6,6 +6,7 @@ import {
 } from '@aws-sdk/client-dynamodb';
 import {
   DynamoDBDocumentClient,
+  DeleteCommand,
   GetCommand,
   PutCommand,
   QueryCommand,
@@ -98,6 +99,53 @@ test('queries the category index when a category filter is supplied', async (con
   });
 });
 
+  test('hides vegetables at the exact removal time even before scheduled deletion', async (context) => {
+    const client = createClient();
+    context.mock.method(client, 'send', async () => ({
+      Items: [{ ...product, category: 'verduras', removeAt: new Date(Date.now() - 1).toISOString() }]
+    }));
+    assert.deepEqual(await new DynamoDBFoodSaveRepository(client).listProducts({}), []);
+  });
+
+  test('deletes only due vegetables with a conditional write', async (context) => {
+    const client = createClient();
+    const deletes: DeleteCommand[] = [];
+    context.mock.method(client, 'send', async (command) => {
+      if (command instanceof QueryCommand) {
+        assert.equal(command.input.ExpressionAttributeValues?.[':category'], 'verduras');
+        return { Items: [{ ...product, category: 'verduras', removeAt: '2026-11-25T12:00:00.000Z' }] };
+      }
+      assert.ok(command instanceof DeleteCommand);
+      deletes.push(command);
+      return {};
+    });
+    const count = await new DynamoDBFoodSaveRepository(client).deleteExpiredVegetables(new Date('2026-11-25T12:00:00.000Z'));
+    assert.equal(count, 1);
+    assert.equal(deletes[0]?.input.ConditionExpression, '#category = :category AND #removeAt <= :now');
+  });
+
+  test('expires a reservation without recreating a product already deleted', async (context) => {
+    const client = createClient();
+    const commands: TransactWriteCommand[] = [];
+    const expiredOrder = {
+      id: 'expired-order', buyerName: 'Ana Pérez', buyerPhone: '+573001234567',
+      privacyPolicyVersion: PRIVACY_POLICY_VERSION, privacyAcceptedAt: '2026-11-18T12:00:00.000Z',
+      status: 'reserved', items: [{ productId: product.id, title: product.title, quantity: 1, unitPrice: 4800, lineTotal: 4800 }],
+      total: 4800, createdAt: '2026-11-18T12:00:00.000Z', paymentExpiresAt: '2026-11-18T12:15:00.000Z'
+    };
+    context.mock.method(client, 'send', async (command) => {
+      if (command instanceof QueryCommand) return { Items: command.input.ExpressionAttributeValues?.[':pending'] === 'reserved' ? [expiredOrder] : [] };
+      if (command instanceof GetCommand) return {};
+      assert.ok(command instanceof TransactWriteCommand);
+      commands.push(command);
+      if (commands.length === 1) throw new TransactionCanceledException({ message: 'deleted', $metadata: {} });
+      return {};
+    });
+    assert.equal(await new DynamoDBFoodSaveRepository(client).expirePendingOrders(new Date('2026-11-18T12:16:00.000Z')), 1);
+    assert.equal(commands[1]?.input.TransactItems?.[0]?.ConditionCheck?.ConditionExpression, 'attribute_not_exists(id)');
+    assert.equal(commands[1]?.input.TransactItems?.[1]?.Update?.ExpressionAttributeValues?.[':expired'], 'expired');
+  });
+
 test('loads existing products by id and omits missing items', async (context) => {
   const client = createClient();
   const requestedIds: string[] = [];
@@ -156,7 +204,7 @@ test('writes inventory updates and the order in one DynamoDB transaction', async
   const transactions = transaction?.input.TransactItems;
   assert.equal(transactions?.length, 2);
   assert.deepEqual(transactions?.[0]?.Update?.Key, { id: product.id });
-  assert.equal(transactions?.[0]?.Update?.ConditionExpression, '#stock >= :quantity AND #expirationDate > :createdAt');
+  assert.equal(transactions?.[0]?.Update?.ConditionExpression, '#stock >= :quantity AND #expirationDate > :createdAt AND (attribute_not_exists(#removeAt) OR #removeAt > :createdAt)');
   const { statusSubscriptionToken: _token, ...persistedOrder } = order;
   assert.deepEqual(transactions?.[1]?.Put?.Item, persistedOrder);
 });
@@ -190,9 +238,10 @@ test('maps DynamoDB transaction cancellation to an inventory conflict', async (c
 
 test('expires overdue orders and restores their reserved stock transactionally', async (context) => {
   const client = createClient();
-  let release: TransactWriteCommand | undefined;
+  const releases: TransactWriteCommand[] = [];
   context.mock.method(client, 'send', async (command) => {
     if (command instanceof QueryCommand) {
+      const status = command.input.ExpressionAttributeValues?.[':pending'];
       return {
         Items: [
           {
@@ -201,7 +250,7 @@ test('expires overdue orders and restores their reserved stock transactionally',
             buyerPhone: '+573001234567',
             privacyPolicyVersion: PRIVACY_POLICY_VERSION,
             privacyAcceptedAt: '2026-11-18T12:00:00.000Z',
-            status: 'pending_payment',
+            status,
             items: [
               {
                 productId: product.id,
@@ -219,7 +268,7 @@ test('expires overdue orders and restores their reserved stock transactionally',
       };
     }
     assert.ok(command instanceof TransactWriteCommand);
-    release = command;
+    releases.push(command);
     return { $metadata: { httpStatusCode: 200 } };
   });
 
@@ -227,15 +276,20 @@ test('expires overdue orders and restores their reserved stock transactionally',
     new Date('2026-11-18T12:16:00.000Z')
   );
 
-  assert.equal(expiredCount, 1);
-  const operations = release?.input.TransactItems;
-  assert.equal(operations?.length, 2);
-  assert.deepEqual(operations?.[0]?.Update?.Key, { id: product.id });
-  assert.equal(operations?.[0]?.Update?.UpdateExpression, 'SET #stock = #stock + :quantity');
-  assert.equal(
-    operations?.[1]?.Update?.ConditionExpression,
-    '#status = :pending AND #paymentExpiresAt <= :now'
-  );
+  assert.equal(expiredCount, 2);
+  assert.deepEqual(releases.map((release) =>
+    release.input.TransactItems?.[1]?.Update?.ExpressionAttributeValues?.[':pending']
+  ), ['reserved', 'pending_payment']);
+  for (const release of releases) {
+    const operations = release.input.TransactItems;
+    assert.equal(operations?.length, 2);
+    assert.deepEqual(operations?.[0]?.Update?.Key, { id: product.id });
+    assert.equal(operations?.[0]?.Update?.UpdateExpression, 'SET #stock = #stock + :quantity');
+    assert.equal(
+      operations?.[1]?.Update?.ConditionExpression,
+      '#status = :pending AND #paymentExpiresAt <= :now'
+    );
+  }
 });
 
 test('limits reservations atomically without persisting the source IP', async (context) => {
@@ -313,7 +367,7 @@ test('reads and stores user profiles by Cognito subject', async (context) => {
   assert.equal(saved.email, profile.email);
 });
 
-test('stores merchant applications as pending review with a conditional write', async (context) => {
+test('activates new merchant applications with a conditional write', async (context) => {
   const client = createClient();
   let write: PutCommand | undefined;
   context.mock.method(client, 'send', async (command) => {
@@ -321,6 +375,7 @@ test('stores merchant applications as pending review with a conditional write', 
     write = command;
     return { $metadata: { httpStatusCode: 200 } };
   });
+
   const application = await new DynamoDBFoodSaveRepository(client).createMerchantApplication(
     'merchant-sub',
     {
@@ -335,9 +390,26 @@ test('stores merchant applications as pending review with a conditional write', 
     new Date('2026-11-18T12:00:00.000Z')
   );
 
-  assert.equal(application.status, 'pending_review');
+  assert.equal(application.status, 'approved');
   assert.equal(application.sub, 'merchant-sub');
   assert.equal(write?.input.ConditionExpression, 'attribute_not_exists(sub)');
+});
+
+test('activates an existing pending merchant when the account is consulted', async (context) => {
+  const client = createClient();
+  const application = {
+    sub: 'merchant-sub', storeName: 'Tienda', ownerName: 'Ana Pérez',
+    contactEmail: 'ana@example.com', phone: '+573001234567', city: 'Bogotá',
+    address: 'Carrera 7 # 45-10', description: '', status: 'pending_review',
+    createdAt: '2026-11-18T12:00:00.000Z', updatedAt: '2026-11-18T12:00:00.000Z'
+  };
+  context.mock.method(client, 'send', async (command) => {
+    if (command instanceof GetCommand) return { Item: application };
+    assert.ok(command instanceof UpdateCommand);
+    assert.equal(command.input.ConditionExpression, '#status = :pending');
+    return { Attributes: { ...application, status: 'approved' } };
+  });
+  assert.equal((await new DynamoDBFoodSaveRepository(client).getMerchantApplication(application.sub))?.status, 'approved');
 });
 
 test('publishes a merchant product only inside an approved-merchant transaction', async (context) => {

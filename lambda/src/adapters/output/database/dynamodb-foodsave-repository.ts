@@ -6,6 +6,7 @@ import {
 } from '@aws-sdk/client-dynamodb';
 import {
   DynamoDBDocumentClient,
+  DeleteCommand,
   GetCommand,
   PutCommand,
   QueryCommand,
@@ -100,6 +101,7 @@ export class DynamoDBFoodSaveRepository implements FoodSaveRepository {
         (product) =>
           product.stock > 0 &&
           new Date(product.expirationDate).getTime() > now &&
+          (!product.removeAt || new Date(product.removeAt).getTime() > now) &&
           (!search ||
             `${product.title} ${product.storeName}`.toLocaleLowerCase('es').includes(search))
       )
@@ -135,10 +137,11 @@ export class DynamoDBFoodSaveRepository implements FoodSaveRepository {
                 Key: { id: item.productId },
                 UpdateExpression: 'SET #stock = #stock - :quantity',
                 ConditionExpression:
-                  '#stock >= :quantity AND #expirationDate > :createdAt',
+                  '#stock >= :quantity AND #expirationDate > :createdAt AND (attribute_not_exists(#removeAt) OR #removeAt > :createdAt)',
                 ExpressionAttributeNames: {
                   '#stock': 'stock',
-                  '#expirationDate': 'expirationDate'
+                  '#expirationDate': 'expirationDate',
+                  '#removeAt': 'removeAt'
                 },
                 ExpressionAttributeValues: {
                   ':quantity': item.quantity,
@@ -278,19 +281,10 @@ export class DynamoDBFoodSaveRepository implements FoodSaveRepository {
       throw new Error('La reserva no está vencida ni puede recibir este pago.');
     }
 
-    await this.client.send(
+    await this.releaseStockWithDeletedProducts(order, (stockUpdates) =>
       new TransactWriteCommand({
         TransactItems: [
-          ...order.items.map((item) => ({
-            Update: {
-              TableName: productsTable,
-              Key: { id: item.productId },
-              UpdateExpression: 'SET #stock = #stock + :quantity',
-              ConditionExpression: 'attribute_exists(id)',
-              ExpressionAttributeNames: { '#stock': 'stock' },
-              ExpressionAttributeValues: { ':quantity': item.quantity }
-            }
-          })),
+          ...stockUpdates,
           {
             Update: {
               TableName: ordersTable,
@@ -320,50 +314,43 @@ export class DynamoDBFoodSaveRepository implements FoodSaveRepository {
 
   async expirePendingOrders(now: Date): Promise<number> {
     const nowIso = now.toISOString();
-    let lastEvaluatedKey: Record<string, unknown> | undefined;
     let expiredCount = 0;
-    do {
-      const page = await this.client.send(
-        new QueryCommand({
-          TableName: ordersTable,
-          IndexName: 'StatusExpiryIndex',
-          KeyConditionExpression: '#status = :pending AND #paymentExpiresAt <= :now',
-          ExpressionAttributeNames: {
-            '#status': 'status',
-            '#paymentExpiresAt': 'paymentExpiresAt'
-          },
-          ExpressionAttributeValues: {
-            ':pending': 'pending_payment',
-            ':now': nowIso
-          },
-          ExclusiveStartKey: lastEvaluatedKey
-        })
-      );
-      for (const rawOrder of page.Items ?? []) {
-        const order = orderSchema.parse(rawOrder);
-        const released = await this.expireOrder(order, nowIso);
-        if (released) expiredCount += 1;
-      }
-      lastEvaluatedKey = page.LastEvaluatedKey;
-    } while (lastEvaluatedKey);
+    for (const status of ['reserved', 'pending_payment'] as const) {
+      let lastEvaluatedKey: Record<string, unknown> | undefined;
+      do {
+        const page = await this.client.send(
+          new QueryCommand({
+            TableName: ordersTable,
+            IndexName: 'StatusExpiryIndex',
+            KeyConditionExpression: '#status = :pending AND #paymentExpiresAt <= :now',
+            ExpressionAttributeNames: {
+              '#status': 'status',
+              '#paymentExpiresAt': 'paymentExpiresAt'
+            },
+            ExpressionAttributeValues: {
+              ':pending': status,
+              ':now': nowIso
+            },
+            ExclusiveStartKey: lastEvaluatedKey
+          })
+        );
+        for (const rawOrder of page.Items ?? []) {
+          const order = orderSchema.parse(rawOrder);
+          const released = await this.expireOrder(order, nowIso);
+          if (released) expiredCount += 1;
+        }
+        lastEvaluatedKey = page.LastEvaluatedKey;
+      } while (lastEvaluatedKey);
+    }
     return expiredCount;
   }
 
   private async expireOrder(order: Order, nowIso: string): Promise<boolean> {
     try {
-      await this.client.send(
+      await this.releaseStockWithDeletedProducts(order, (stockUpdates) =>
         new TransactWriteCommand({
           TransactItems: [
-            ...order.items.map((item) => ({
-              Update: {
-                TableName: productsTable,
-                Key: { id: item.productId },
-                UpdateExpression: 'SET #stock = #stock + :quantity',
-                ConditionExpression: 'attribute_exists(id)',
-                ExpressionAttributeNames: { '#stock': 'stock' },
-                ExpressionAttributeValues: { ':quantity': item.quantity }
-              }
-            })),
+            ...stockUpdates,
             {
               Update: {
                 TableName: ordersTable,
@@ -378,7 +365,7 @@ export class DynamoDBFoodSaveRepository implements FoodSaveRepository {
                 },
                 ExpressionAttributeValues: {
                   ':expired': 'expired',
-                  ':pending': 'pending_payment',
+                  ':pending': order.status,
                   ':now': nowIso
                 }
               }
@@ -391,13 +378,89 @@ export class DynamoDBFoodSaveRepository implements FoodSaveRepository {
       if (!(error instanceof TransactionCanceledException)) throw error;
       const current = await this.getOrder(order.id);
       if (
-        current?.status !== 'pending_payment' ||
+        current?.status !== order.status ||
         current.paymentExpiresAt > nowIso
       ) {
         return false;
       }
       throw error;
     }
+  }
+
+  private async releaseStockWithDeletedProducts(
+    order: Order,
+    transaction: (stockUpdates: NonNullable<ConstructorParameters<typeof TransactWriteCommand>[0]['TransactItems']>) => TransactWriteCommand
+  ): Promise<void> {
+    let missing = new Set<string>();
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const updates = order.items.map((item) =>
+        missing.has(item.productId)
+          ? {
+              ConditionCheck: {
+                TableName: productsTable,
+                Key: { id: item.productId },
+                ConditionExpression: 'attribute_not_exists(id)'
+              }
+            }
+          : {
+              Update: {
+                TableName: productsTable,
+                Key: { id: item.productId },
+                UpdateExpression: 'SET #stock = #stock + :quantity',
+                ConditionExpression: 'attribute_exists(id)',
+                ExpressionAttributeNames: { '#stock': 'stock' },
+                ExpressionAttributeValues: { ':quantity': item.quantity }
+              }
+            }
+      );
+      try {
+        await this.client.send(transaction(updates));
+        return;
+      } catch (error: unknown) {
+        if (!(error instanceof TransactionCanceledException) || attempt === 2) throw error;
+        const products = await this.getProductsByIds(order.items.map((item) => item.productId));
+        const present = new Set(products.map((product) => product.id));
+        const nextMissing = new Set(order.items.map((item) => item.productId).filter((id) => !present.has(id)));
+        if (nextMissing.size === missing.size && [...nextMissing].every((id) => missing.has(id))) {
+          throw error;
+        }
+        missing = nextMissing;
+      }
+    }
+  }
+
+  async deleteExpiredVegetables(now: Date): Promise<number> {
+    const nowIso = now.toISOString();
+    let deleted = 0;
+    let lastEvaluatedKey: Record<string, unknown> | undefined;
+    do {
+      const page = await this.client.send(new QueryCommand({
+        TableName: productsTable,
+        IndexName: 'CategoryTitleIndex',
+        KeyConditionExpression: '#category = :category',
+        FilterExpression: '#removeAt <= :now',
+        ExpressionAttributeNames: { '#category': 'category', '#removeAt': 'removeAt' },
+        ExpressionAttributeValues: { ':category': 'verduras', ':now': nowIso },
+        ExclusiveStartKey: lastEvaluatedKey
+      }));
+      for (const item of page.Items ?? []) {
+        const product = productSchema.parse(item);
+        try {
+          await this.client.send(new DeleteCommand({
+            TableName: productsTable,
+            Key: { id: product.id },
+            ConditionExpression: '#category = :category AND #removeAt <= :now',
+            ExpressionAttributeNames: { '#category': 'category', '#removeAt': 'removeAt' },
+            ExpressionAttributeValues: { ':category': 'verduras', ':now': nowIso }
+          }));
+          deleted += 1;
+        } catch (error: unknown) {
+          if (!(error instanceof ConditionalCheckFailedException)) throw error;
+        }
+      }
+      lastEvaluatedKey = page.LastEvaluatedKey;
+    } while (lastEvaluatedKey);
+    return deleted;
   }
 
   async consumeReservationRateLimit(sourceIp: string, now: Date): Promise<boolean> {
@@ -475,9 +538,31 @@ export class DynamoDBFoodSaveRepository implements FoodSaveRepository {
         ConsistentRead: true
       })
     );
-    return response.Item
-      ? merchantApplicationSchema.parse(response.Item)
-      : undefined;
+    if (!response.Item) return undefined;
+    const application = merchantApplicationSchema.parse(response.Item);
+    if (application.status !== 'pending_review') return application;
+    try {
+      const updated = await this.client.send(new UpdateCommand({
+        TableName: merchantsTable,
+        Key: { sub },
+        UpdateExpression: 'SET #status = :approved, #updatedAt = :now',
+        ConditionExpression: '#status = :pending',
+        ExpressionAttributeNames: { '#status': 'status', '#updatedAt': 'updatedAt' },
+        ExpressionAttributeValues: {
+          ':approved': 'approved',
+          ':pending': 'pending_review',
+          ':now': new Date().toISOString()
+        },
+        ReturnValues: 'ALL_NEW'
+      }));
+      return merchantApplicationSchema.parse(updated.Attributes);
+    } catch (error: unknown) {
+      if (!(error instanceof ConditionalCheckFailedException)) throw error;
+      const current = await this.client.send(new GetCommand({
+        TableName: merchantsTable, Key: { sub }, ConsistentRead: true
+      }));
+      return current.Item ? merchantApplicationSchema.parse(current.Item) : undefined;
+    }
   }
 
   async createMerchantApplication(
@@ -489,7 +574,7 @@ export class DynamoDBFoodSaveRepository implements FoodSaveRepository {
     const application: MerchantApplication = {
       sub,
       ...input,
-      status: 'pending_review',
+      status: 'approved',
       createdAt: timestamp,
       updatedAt: timestamp
     };

@@ -13,6 +13,7 @@ import type {
 import { createApiHandler as createApiHandlerWithDependencies } from './handler.js';
 import type { PaymentGateway } from './src/adapters/output/payment/mercado-pago-payment-gateway.js';
 import type { ImageStorage } from './src/adapters/output/storage/s3-image-storage.js';
+import { merchantProductExpirationError } from './src/domain/models/merchant.js';
 
 const product: Product = {
   id: 'apple-1',
@@ -129,7 +130,7 @@ function createRepository() {
     createMerchantApplication: async (sub, input, now) => ({
       sub,
       ...input,
-      status: 'pending_review',
+      status: 'approved',
       createdAt: now.toISOString(),
       updatedAt: now.toISOString()
     }),
@@ -236,13 +237,15 @@ test('accepts a base64-encoded reservation request', async () => {
     orderId: string;
     status: string;
     total: number;
-    checkoutUrl: string;
+    reservationExpiresAt: string;
+    items: Array<{ title: string; quantity: number; lineTotal: number }>;
     statusSubscriptionToken: string;
   };
   assert.equal(typeof receipt.orderId, 'string');
-  assert.equal(receipt.status, 'pending_payment');
+  assert.equal(receipt.status, 'reserved');
   assert.equal(receipt.total, 9600);
-  assert.equal(receipt.checkoutUrl, 'https://mercadopago.example/checkout');
+  assert.equal(receipt.items[0]?.lineTotal, 9600);
+  assert.equal(typeof receipt.reservationExpiresAt, 'string');
   assert.match(receipt.statusSubscriptionToken, /^[A-Za-z0-9_-]{43}$/);
 });
 
@@ -324,7 +327,7 @@ test('returns 429 before reserving when the source has exceeded the limit', asyn
   assert.equal(orders.length, 0);
 });
 
-test('does not reserve inventory when Mercado Pago is not configured', async () => {
+test('reserves inventory without configuring Mercado Pago', async () => {
   const { repository, orders } = createRepository();
   const response = await createApiHandlerWithDependencies(repository, {
     ...testPaymentGateway,
@@ -342,8 +345,9 @@ test('does not reserve inventory when Mercado Pago is not configured', async () 
     )
   );
 
-  assert.equal(response.statusCode, 503);
-  assert.equal(orders.length, 0);
+  assert.equal(response.statusCode, 201);
+  assert.equal(orders.length, 1);
+  assert.equal(orders[0]?.status, 'reserved');
 });
 
 test('confirms an order only after a valid Mercado Pago webhook', async () => {
@@ -567,7 +571,7 @@ test('creates a merchant application tied to the authenticated user', async () =
 
   assert.equal(response.statusCode, 201);
   assert.equal((responseBody(response) as { sub: string }).sub, 'cognito-user-123');
-  assert.equal((responseBody(response) as { status: string }).status, 'pending_review');
+  assert.equal((responseBody(response) as { status: string }).status, 'approved');
 });
 
 test('requires the FoodSaveAdmins Cognito group to review an application', async () => {
@@ -627,8 +631,8 @@ test('creates products only for approved merchants and their uploaded images', a
       'POST',
       '/merchant/products',
       JSON.stringify({
-        title: 'Manzanas de temporada',
-        category: 'frutas',
+        title: 'Lechuga fresca',
+        category: 'verduras',
         originalPrice: 12000,
         discountPrice: 4800,
         expirationDate: new Date(Date.now() + 86_400_000).toISOString(),
@@ -648,4 +652,41 @@ test('creates products only for approved merchants and their uploaded images', a
   assert.equal(createdProduct?.storeName, 'Fruver del barrio');
   assert.equal(createdProduct?.merchantId, 'cognito-user-123');
   assert.equal(createdProduct?.imageUrl, 'https://images.example.com/signed-image');
+  assert.equal(Date.parse(createdProduct?.removeAt ?? '') - Date.parse(createdProduct?.publishedAt ?? ''), 48 * 3_600_000);
+});
+
+test('enforces the precise publication windows for vegetables and other products', () => {
+  const now = new Date('2026-11-25T12:00:00.000Z');
+  for (const [category, days] of [['verduras', 2], ['frutas', 5]] as const) {
+    const expires = (offset: number) => new Date(now.getTime() + offset).toISOString();
+    assert.equal(merchantProductExpirationError({ category, expirationDate: expires(days * 86_400_000) }, now), undefined);
+    assert.match(merchantProductExpirationError({ category, expirationDate: expires(days * 86_400_000 + 1) }, now) ?? '', new RegExp(`${days} días`));
+    assert.match(merchantProductExpirationError({ category, expirationDate: expires(0) }, now) ?? '', /futuro/);
+  }
+});
+
+test('refuses to publish a vegetable outside its window before checking its image', async () => {
+  const { repository } = createRepository();
+  repository.getMerchantApplication = async (sub) => ({
+    sub, storeName: 'Tienda', ownerName: 'Ana Pérez', contactEmail: 'ana@example.com',
+    phone: '+573001234567', city: 'Bogotá', address: 'Carrera 7 # 45-10',
+    description: '', status: 'approved', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+  });
+  let published = false;
+  repository.createMerchantProduct = async () => { published = true; };
+  const imageStorage: ImageStorage = {
+    isConfigured: () => true,
+    createUpload: async () => { throw new Error('No debe llamarse'); },
+    createReadUrl: async () => { throw new Error('No debe llamarse'); },
+    imageExists: async () => { throw new Error('No debe llamarse'); }
+  };
+  const response = await createApiHandlerWithDependencies(repository, testPaymentGateway, imageStorage)(
+    event('POST', '/merchant/products', JSON.stringify({
+      title: 'Lechuga', category: 'verduras', originalPrice: 5000, discountPrice: 2000,
+      expirationDate: new Date(Date.now() + 3 * 86_400_000).toISOString(), stock: 1,
+      imageKey: 'merchant-images/user/a.webp'
+    }), undefined, { sub: 'user', email: 'ana@example.com', 'custom:privacy_version': PRIVACY_POLICY_VERSION })
+  );
+  assert.equal(response.statusCode, 400);
+  assert.equal(published, false);
 });

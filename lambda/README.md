@@ -1,6 +1,6 @@
 # FoodSave API
 
-API serverless basada en AWS Lambda, API Gateway, DynamoDB, Cognito y S3. Incluye pagos Mercado Pago, aprobación de comercios y notificaciones asíncronas por DynamoDB Streams, Amazon SES y WebSocket.
+API serverless basada en AWS Lambda, API Gateway, DynamoDB, Cognito y S3. Incluye reservas de 15 minutos, registro de comercios y notificaciones asíncronas por DynamoDB Streams, Amazon SES y WebSocket.
 
 El contrato HTTP está en [openapi.yaml](./openapi.yaml).
 
@@ -42,7 +42,7 @@ npm start
 
 La aplicación queda en `http://localhost:4200`. La API queda en `http://localhost:3000`; se puede comprobar con `curl http://localhost:3000/health`.
 
-Con `env.local.example.json`, el entorno local permite probar el catálogo y el carrito. Las reservas permanecen deshabilitadas hasta configurar Mercado Pago; no se simula un pago ni se retiene inventario si faltan credenciales. Cognito, S3, SES y WebSocket requieren recursos desplegados en AWS.
+Con `env.local.example.json`, el entorno local permite probar el catálogo, el carrito y las reservas sin configurar pagos. Cognito, S3, SES y WebSocket requieren recursos desplegados en AWS. La liberación automática requiere ejecutar el manejador de expiración programado.
 
 Para apagar DynamoDB local: `docker compose down`. El volumen `dynamodb-data` conserva los datos entre reinicios.
 
@@ -65,15 +65,17 @@ npm run build -- --configuration production
 
 - `GET /health`
 - `GET /products` con filtros opcionales `category` y `search`
-- `POST /orders` con `buyerName`, `buyerPhone`, `items: [{ productId, quantity }]` y un `delivery` opcional. Inicia checkout de Mercado Pago y devuelve un token privado de seguimiento.
+- `POST /orders` con `buyerName`, `buyerPhone`, `items: [{ productId, quantity }]` y un `delivery` opcional. Devuelve el número, artículos, total, vencimiento y token privado de seguimiento.
 - `GET /orders/{orderId}/status` requiere el token de seguimiento en el encabezado `x-order-token`.
-- `POST /webhooks/mercadopago` verifica la firma y consulta el pago directamente antes de confirmar la reserva.
+- `POST /webhooks/mercadopago` permanece disponible para pedidos anteriores que usaban pagos.
 - `GET /profile` (JWT Cognito obligatorio)
 - `PUT /profile` (JWT Cognito obligatorio, cuerpo `name` y `phone`)
-- `GET|POST /merchant/application`, `POST /merchant/images/upload-url` y `POST /merchant/products` (JWT y aprobación de comercio obligatorios)
+- `GET|POST /merchant/application`, `POST /merchant/images/upload-url` y `POST /merchant/products` (JWT obligatorio; el registro del comercio se activa automáticamente)
 - `PUT /admin/merchant-applications/{sub}/decision` (grupo Cognito `FoodSaveAdmins`)
 
-El servidor calcula el total desde el catálogo y retiene inventario por 15 minutos. Solo el webhook firmado confirma pagos; la expiración libera el inventario. El costo y la cobertura del domicilio aún los confirma la tienda. Las imágenes quedan privadas en S3 y se muestran mediante URLs temporales.
+El servidor calcula el total desde el catálogo y retiene inventario por 15 minutos; después la expiración libera el inventario. Los pedidos nuevos no procesan pagos. El costo y la cobertura del domicilio aún los confirma la tienda. Las imágenes quedan privadas en S3 y se muestran mediante URLs temporales.
+
+Para publicar, la fecha y hora de vencimiento deben ser futuras y estar dentro de las próximas 120 horas; para la categoría `verduras`, el límite es de 48 horas. Las verduras se ocultan a las 48 horas de publicarse y la función programada las borra de DynamoDB en su siguiente ejecución; sus imágenes en S3 no se eliminan automáticamente. Los pedidos conservan su propio resumen. Estas reglas aplican a publicaciones nuevas, no reclasifican registros anteriores.
 
 ## Desplegar en AWS
 
@@ -104,9 +106,9 @@ export const environment = {
 };
 ```
 
-Completa los parámetros de despliegue `MercadoPagoAccessToken`, `MercadoPagoWebhookSecret`, `NotificationFromEmail`, `FrontendOrigin` y `PublicApiUrl`. El correo remitente debe estar verificado en SES; las cuentas SES en sandbox también requieren verificar a los destinatarios. `PublicApiUrl` se conoce después del primer despliegue: actualiza el stack con la URL de `FoodSaveApiUrl` para habilitar notificaciones de Mercado Pago. No pongas secretos en los archivos del frontend ni los subas al repositorio.
+Configura `NotificationFromEmail` y `FrontendOrigin`. El correo remitente debe estar verificado en SES; las cuentas SES en sandbox también requieren verificar a los destinatarios. Los parámetros de Mercado Pago y `PublicApiUrl` solo se requieren para procesar notificaciones de pedidos antiguos. No pongas secretos en los archivos del frontend ni los subas al repositorio.
 
-Asigna administradores de forma manual, por ejemplo con `aws cognito-idp admin-add-user-to-group --user-pool-id <FoodSaveUserPoolId> --username <correo> --group-name FoodSaveAdmins`. No habilites autoservicio de aprobación.
+Los comercios nuevos se activan automáticamente, sin revisión manual. Las solicitudes antiguas pendientes se activan al consultarse; las rechazadas conservan su estado. El endpoint de revisión administrativa permanece para compatibilidad con solicitudes existentes.
 
 La política de privacidad del frontend es un borrador con campos pendientes de completar y revisión legal en Colombia; no es una política lista para producción. Configura también la URL WebSocket en el entorno del frontend para recibir cambios de estado en tiempo real. Los errores persistentes de notificación terminan en `FoodSaveNotificationDlq`; configura alarmas y un procedimiento de reintento/inspección antes de producción.
 

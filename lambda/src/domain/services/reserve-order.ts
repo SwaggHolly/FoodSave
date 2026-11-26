@@ -32,10 +32,11 @@ export class ReserveOrderService {
     const order = await this.createOrder(request);
     return {
       orderId: order.id,
-      status: 'pending_payment',
+      status: 'reserved',
       total: order.total,
       createdAt: order.createdAt,
-      paymentExpiresAt: order.paymentExpiresAt,
+      reservationExpiresAt: order.paymentExpiresAt,
+      items: order.items,
       statusSubscriptionToken: order.statusSubscriptionToken ?? ''
     };
   }
@@ -77,7 +78,7 @@ export class ReserveOrderService {
       privacyPolicyVersion: request.privacyPolicyVersion,
       privacyAcceptedAt: createdAt,
       delivery: request.delivery ?? { method: 'pickup' },
-      status: 'pending_payment',
+      status: 'reserved',
       items: orderItems,
       total: orderItems.reduce((total, item) => total + item.lineTotal, 0),
       createdAt,
@@ -91,7 +92,8 @@ export class ReserveOrderService {
   private assertAvailable(product: Product, quantity: number, now: Date): void {
     if (
       product.stock < quantity ||
-      new Date(product.expirationDate).getTime() <= now.getTime()
+      new Date(product.expirationDate).getTime() <= now.getTime() ||
+      (product.removeAt !== undefined && new Date(product.removeAt).getTime() <= now.getTime())
     ) {
       throw new InventoryConflictError();
     }

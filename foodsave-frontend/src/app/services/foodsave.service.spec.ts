@@ -67,12 +67,12 @@ describe('FoodsaveService', () => {
     expect(request.request.body).toEqual(order);
     request.flush({
       orderId: 'order-123',
-      status: 'pending_payment',
+      status: 'reserved',
       total: 9600,
       createdAt: '2026-11-17T12:00:00.000Z',
-      paymentExpiresAt: '2026-11-17T12:15:00.000Z',
+      reservationExpiresAt: '2026-11-17T12:15:00.000Z',
       statusSubscriptionToken: 'private-token',
-      checkoutUrl: 'https://mercadopago.example/checkout'
+      items: [{ productId: '1', title: product.title, quantity: 2, unitPrice: 4800, lineTotal: 9600 }]
     });
 
     expect(orderId).toBe('order-123');
